@@ -34,16 +34,12 @@ import struct
 
 import grpc
 import cv2
-import rospy
-from PIL import Image as pil_image
-from sensor_msgs.msg import Image as ros_image
-from cv_bridge import CvBridge, CvBridgeError
 
 from tritonclient.grpc import service_pb2, service_pb2_grpc
 import tritonclient.grpc.model_config_pb2 as mc
 
-from preprocess import parse_model, model_dtype_to_np, requestGenerator, image_adjust
-from postprocess import extract_boxes, load_class_names
+from utils.preprocess import parse_model, model_dtype_to_np, requestGenerator, image_adjust
+from utils.postprocess import extract_boxes_triton, load_class_names
 
 FLAGS = None
 
@@ -113,6 +109,7 @@ if __name__ == '__main__':
     FLAGS = parser.parse_args()
 
     # Create gRPC stub for communicating with the server
+    # NOTE! Depending upon the image dimensions, the message length has to be adjusted. This works for 512 x 512 x 3
     channel = grpc.insecure_channel(FLAGS.url, options=[
                                    ('grpc.max_send_message_length', 5419071),
                                    ('grpc.max_receive_message_length', 5419071),
@@ -169,10 +166,10 @@ if __name__ == '__main__':
                 error_found = True
                 print(response.error_message)
             else:
-                predictions.append(extract_boxes(response.infer_response, result_filenames[idx],
+                predictions.append(extract_boxes_triton(response.infer_response, result_filenames[idx],
                             FLAGS.batch_size))
         else:
-            predictions.append(extract_boxes(response, result_filenames[idx], FLAGS.batch_size))
+            predictions.append(extract_boxes_triton(response, result_filenames[idx], FLAGS.batch_size))
         idx += 1
     # TODO add publish ROS message flag to display detections instead of always true.
     # TODO the file ordering is not consistent with the inference results. TRITON must maintain the order. NOT CHAOS!!!

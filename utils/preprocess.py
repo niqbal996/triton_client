@@ -3,7 +3,6 @@ import numpy as np
 import os
 import cv2
 from PIL import Image
-from ros_util import get_image_msg
 
 # from sensor_msgs.msg import Image
 # from cv_bridge import CvBridge, CvBridgeError
@@ -193,15 +192,14 @@ def requestGenerator(input_name, output_name, c, h, w, format, dtype, FLAGS,
                                            FLAGS.scaling))
 
     else:
-        image_data = get_image_msg()
+        pass
+        # image_data = get_image_msg()
     output0 = service_pb2.ModelInferRequest().InferRequestedOutputTensor()
     output0.name = output_name[0]
-    # output0.parameters['classification'].int64_param = FLAGS.classes
-
     output1 = service_pb2.ModelInferRequest().InferRequestedOutputTensor()
     output1.name = output_name[1]
     request.outputs.extend([output0, output1])
-    request.outputs.extend([output0])
+    # request.outputs.extend([output0])
     input = service_pb2.ModelInferRequest().InferInputTensor()
     input.name = input_name
     input.datatype = dtype
