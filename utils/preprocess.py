@@ -216,9 +216,6 @@ def requestGenerator(input_name, output_name, c, h, w, format, dtype, FLAGS,
     # Preprocess the images into input data according to model
     # requirements
 
-
-
-
     # Send requests of FLAGS.batch_size images. If the number of
     # images isn't an exact multiple of FLAGS.batch_size then just
     # start over with the first images until the batch is filled.

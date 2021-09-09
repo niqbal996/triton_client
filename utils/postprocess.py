@@ -60,8 +60,8 @@ def extract_boxes_triton(response, filenames, batch_size):
     """
     Post-process response to show classifications.
     """
-    conf_thresh = 0.1
-    nms_thresh = 0.1
+    conf_thresh = 0.4
+    nms_thresh = 0.6
 
     confs = deserialize_bytes_tensor(response.raw_output_contents[0])
     confs_contents = np.reshape(confs, response.outputs[0].shape)
