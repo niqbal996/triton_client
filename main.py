@@ -40,6 +40,7 @@ import tritonclient.grpc.model_config_pb2 as mc
 
 from utils.preprocess import parse_model, model_dtype_to_np, requestGenerator, image_adjust
 from utils.postprocess import extract_boxes_triton, load_class_names
+from utils.ros_input import RealSenseNode
 
 FLAGS = None
 
@@ -68,6 +69,12 @@ if __name__ == '__main__':
                         type=str,
                         required=True,
                         help='Name of model')
+    parser.add_argument('-t',
+                        '--ros-topic',
+                        type=str,
+                        required=False,
+                        default='/camera/color/image_raw',
+                        help='Ros topic for data input (only image topics)')
     parser.add_argument(
         '-x',
         '--model-version',
@@ -111,8 +118,8 @@ if __name__ == '__main__':
     # Create gRPC stub for communicating with the server
     # NOTE! Depending upon the image dimensions, the message length has to be adjusted. This works for 512 x 512 x 3
     channel = grpc.insecure_channel(FLAGS.url, options=[
-                                   ('grpc.max_send_message_length', 5419071),
-                                   ('grpc.max_receive_message_length', 5419071),
+                                   ('grpc.max_send_message_length', 7372872),
+                                   ('grpc.max_receive_message_length', 7372872),
                                ])
     grpc_stub = service_pb2_grpc.GRPCInferenceServiceStub(channel)
     class_names = load_class_names()
@@ -138,17 +145,26 @@ if __name__ == '__main__':
     result_filenames = []
 
     # Send request
-    if FLAGS.streaming:
+    if FLAGS.streaming and not FLAGS.ros_topic:
         for response in grpc_stub.ModelStreamInfer(
                 requestGenerator(input_name, output_name, c, h, w, format,
                                  dtype, FLAGS, result_filenames)):
             responses.append(response)
+    elif FLAGS.ros_topic and not FLAGS.image_filename:
+        ros_node = RealSenseNode(grpc_stub,
+                                 input_name,
+                                 output_name,
+                                 FLAGS,
+                                 dtype,
+                                 c, h, w)
+        ros_node.start()
     else:
         for request in requestGenerator(input_name, output_name, c, h, w,
                                         format, dtype, FLAGS, result_filenames):
             if not FLAGS.async_set:
-                requests.append(request)
-                responses.append(grpc_stub.ModelInfer(request))
+                # requests.append(request)
+                response = grpc_stub.ModelInfer(request)
+                prediction = extract_boxes_triton(response)
             else:
                 requests.append(grpc_stub.ModelInfer.future(request))
 
