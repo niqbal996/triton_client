@@ -27,10 +27,9 @@
 
 import argparse
 import numpy as np
-from PIL import Image
-import os
 import sys
-import struct
+import rospy
+import yaml
 
 import grpc
 import cv2
@@ -69,12 +68,6 @@ if __name__ == '__main__':
                         type=str,
                         required=True,
                         help='Name of model')
-    parser.add_argument('-t',
-                        '--ros-topic',
-                        type=str,
-                        required=False,
-                        default='/camera/color/image_raw',
-                        help='Ros topic for data input (only image topics)')
     parser.add_argument(
         '-x',
         '--model-version',
@@ -92,7 +85,7 @@ if __name__ == '__main__':
                         '--classes',
                         type=int,
                         required=False,
-                        default=1,
+                        default=80,
                         help='Number of class results to report. Default is 1.')
     parser.add_argument(
         '-s',
@@ -100,27 +93,27 @@ if __name__ == '__main__':
         type=str,
         choices=['NONE', 'INCEPTION', 'VGG', 'COCO'],
         required=False,
-        default='NONE',
+        default='COCO',
         help='Type of scaling to apply to image pixels. Default is NONE.')
-    parser.add_argument('-u',
-                        '--url',
-                        type=str,
-                        required=False,
-                        default='localhost:8001',
-                        help='Inference server URL. Default is localhost:8001.')
-    parser.add_argument('image_filename',
-                        type=str,
-                        nargs='?',
-                        default=None,
-                        help='Input image / Input folder.')
+    parser.add_argument(
+        '-i',
+        '--image-src',
+        type=str,
+        choices=['ros', 'local'],
+        required=False,
+        default='ros',
+        help='Source of input images to run inference on. Default is ROS image topic')
     FLAGS = parser.parse_args()
-
+    rospy.init_node('ros_infer')
+    param_file = rospy.get_param('client_parameter_file', './data/client_parameter.yaml')
+    with open(param_file) as file:
+        param = yaml.load(file, Loader=yaml.FullLoader)
     # Create gRPC stub for communicating with the server
     # NOTE! Depending upon the image dimensions, the message length has to be adjusted. This works for 512 x 512 x 3
-    channel = grpc.insecure_channel(FLAGS.url, options=[
+    channel = grpc.insecure_channel(param['grpc_channel'], options=[
                                    ('grpc.max_send_message_length', 7372872),
                                    ('grpc.max_receive_message_length', 7372872),
-                               ])
+                                    ])
     grpc_stub = service_pb2_grpc.GRPCInferenceServiceStub(channel)
     class_names = load_class_names()
 
@@ -150,14 +143,15 @@ if __name__ == '__main__':
                 requestGenerator(input_name, output_name, c, h, w, format,
                                  dtype, FLAGS, result_filenames)):
             responses.append(response)
-    elif FLAGS.ros_topic and not FLAGS.image_filename:
+    elif FLAGS.image_src == 'ros':
         ros_node = RealSenseNode(grpc_stub,
                                  input_name,
                                  output_name,
+                                 param,
                                  FLAGS,
                                  dtype,
                                  c, h, w)
-        ros_node.start()
+        ros_node.start_inference()
     else:
         for request in requestGenerator(input_name, output_name, c, h, w,
                                         format, dtype, FLAGS, result_filenames):
@@ -189,27 +183,27 @@ if __name__ == '__main__':
         idx += 1
     # TODO add publish ROS message flag to display detections instead of always true.
     # TODO the file ordering is not consistent with the inference results. TRITON must maintain the order. NOT CHAOS!!!
-    if True:
-        for file, pred in zip(result_filenames, predictions):
-            cv_image = cv2.imread(file[0])
-            # cv_image = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
-            cv_image = cv2.resize(cv_image, (w, h), interpolation=cv2.INTER_LINEAR)
-            for object in pred[0]:  # predictions array has the order [x1,y1, x2,y2, confidence, confidence, class ID]
-                box = np.array(object[0:4], dtype=np.float32) * w
-                cv2.rectangle(cv_image,
-                              pt1=(int(box[0]), int(box[1])),
-                              pt2=(int(box[2]), int(box[3])),
-                              color=(0, 255, 0),
-                              thickness=1)
-                cv2.putText(cv_image,
-                            '{:.2f} {}'.format(object[-2], class_names[int(object[-1])]),
-                            org=(int(box[0]), int(box[1])),
-                            fontFace=cv2.FONT_HERSHEY_SIMPLEX,
-                            fontScale=0.5,
-                            thickness=2,
-                            color=(0, 255, 0))
-
-            cv2.imshow('prediction', cv_image)
-            cv2.waitKey()
+    # if True:
+    #     for file, pred in zip(result_filenames, predictions):
+    #         cv_image = cv2.imread(file[0])
+    #         # cv_image = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
+    #         cv_image = cv2.resize(cv_image, (w, h), interpolation=cv2.INTER_LINEAR)
+    #         for object in pred[0]:  # predictions array has the order [x1,y1, x2,y2, confidence, confidence, class ID]
+    #             box = np.array(object[0:4], dtype=np.float32) * w
+    #             cv2.rectangle(cv_image,
+    #                           pt1=(int(box[0]), int(box[1])),
+    #                           pt2=(int(box[2]), int(box[3])),
+    #                           color=(0, 255, 0),
+    #                           thickness=1)
+    #             cv2.putText(cv_image,
+    #                         '{:.2f} {}'.format(object[-2], class_names[int(object[-1])]),
+    #                         org=(int(box[0]), int(box[1])),
+    #                         fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+    #                         fontScale=0.5,
+    #                         thickness=2,
+    #                         color=(0, 255, 0))
+    #
+    #         cv2.imshow('prediction', cv_image)
+    #         cv2.waitKey()
     if error_found:
         sys.exit(1)

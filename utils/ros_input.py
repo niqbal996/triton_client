@@ -10,11 +10,21 @@ import tritonclient.grpc.model_config_pb2 as mc
 from utils.postprocess import extract_boxes_triton
 
 class RealSenseNode(object):
-    def __init__(self, grpc_stub, input_name, output_name, FLAGS, dtype, c, h, w):
+    def __init__(self, grpc_stub, input_name, output_name, param, FLAGS, dtype, c, h, w):
+        '''
+        grpc_stub: gRPC stub to invoke ModelInfer() in this class
+        input_name: Name of the input as described by the onnx converter
+        output_name: Model output name as described by the onnx converter
+        param: Parameters taken from the yaml file for ros topic names and server URL
+        dtype: Data type of the input
+        c,h,w: Channel width height
+
+        '''
         self.image = None
         self.br = CvBridge()
         self.stub = grpc_stub
         self.FLAGS = FLAGS
+        self.param = param
         self.class_names = self.load_class_names()
         self.input = service_pb2.ModelInferRequest().InferInputTensor()
         self.input.name = input_name
@@ -33,11 +43,12 @@ class RealSenseNode(object):
         self.output1 = service_pb2.ModelInferRequest().InferRequestedOutputTensor()
         self.output1.name = output_name[1]
         self.request.outputs.extend([self.output0, self.output1])
+        self.detection = rospy.Publisher(param['pub_topic'], Image, queue_size=10)
 
-        self.detection = rospy.Publisher('/camera/color/detection', Image, queue_size=10)
-        rospy.init_node("realsense_infer")
-        rospy.Subscriber("/camera/color/image_raw", Image, self.callback)
+    def start_inference(self):
+        rospy.Subscriber(self.param['sub_topic'], Image, self.callback)
         rospy.spin()
+
     def scale_boxes(self, box):
         '''
         box: Bounding box generated for the image size (e.g. 512 x 512) expected by the model at triton server
@@ -61,7 +72,7 @@ class RealSenseNode(object):
             self.request.ClearField("raw_input_contents")   # Flush the previous image contents
             self.request.inputs.extend([self.input])
             self.request.raw_input_contents.extend([self.image.tobytes()])
-            self.response = self.stub.ModelStreamInfer(self.request)  # Inference
+            self.response = self.stub.ModelInfer(self.request)  # Inference
             self.prediction = extract_boxes_triton(self.response)
 
             for object in self.prediction[0]:  # predictions array has the order [x1,y1, x2,y2, confidence, confidence, class ID]
@@ -85,19 +96,6 @@ class RealSenseNode(object):
             # cv2.imshow('Prediction', cv2.cvtColor(cv_image, cv2.COLOR_RGB2BGR))
             # cv2.waitKey()
 
-
-
-
-    def start(self):
-        # rospy.loginfo("Timing images")
-        #rospy.spin()
-        while not rospy.is_shutdown():
-            # rospy.loginfo('publishing image')
-            #br = CvBridge()
-
-                print('hold')
-            # self.loop_rate.sleep()
-
     def load_class_names(self, namesfile='./data/coco.names'):
         class_names = []
         with open(namesfile, 'r') as fp:
@@ -108,6 +106,10 @@ class RealSenseNode(object):
         return class_names
 
     def image_adjust(self, cv_image):
+        '''
+        cv_image: input image in RGB order
+        return: Normalized image in BCHW dimensions.
+        '''
         # pad = np.zeros((16, 1280, 3), dtype=np.uint8)
         # cv_image = np.concatenate((cv_image, pad), axis=0)
         # orig = cv_image.copy()
@@ -118,6 +120,5 @@ class RealSenseNode(object):
         return cv_image
 
 if __name__ == '__main__':
-    rospy.init_node("imagetimer111", anonymous=True)
+    rospy.init_node("detector", anonymous=True)
     my_node = RealSenseNode()
-    my_node.start()
