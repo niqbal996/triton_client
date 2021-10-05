@@ -56,7 +56,7 @@ def nms_cpu(boxes, confs, nms_thresh=0.5, min_mode=False):
 
 
 
-def extract_boxes_triton(response, filenames, batch_size):
+def extract_boxes_triton(response):
     """
     Post-process response to show classifications.
     """

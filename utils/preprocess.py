@@ -1,15 +1,18 @@
+import sys
 
 import numpy as np
 import os
 import cv2
+import rospy
 from PIL import Image
+import yaml
 
-# from sensor_msgs.msg import Image
-# from cv_bridge import CvBridge, CvBridgeError
-
-
+from sensor_msgs.msg import Image
+from cv_bridge import CvBridge, CvBridgeError
 from tritonclient.grpc import service_pb2, service_pb2_grpc
 import tritonclient.grpc.model_config_pb2 as mc
+
+dir_path = os.path.dirname(os.path.realpath(__file__))
 
 def model_dtype_to_np(model_dtype):
     if model_dtype == "BOOL":
@@ -36,6 +39,14 @@ def model_dtype_to_np(model_dtype):
         return np.dtype(object)
     return None
 
+def load_class_names(namesfile='{}/data/crop.names'.format(dir_path)):
+    class_names = []
+    with open(namesfile, 'r') as fp:
+        lines = fp.readlines()
+    for line in lines:
+        line = line.rstrip()
+        class_names.append(line)
+    return class_names
 
 def parse_model(model_metadata, model_config):
     """
@@ -163,7 +174,13 @@ def image_adjust(img, format, dtype, c, h, w, scaling, pil=False):
         img_in /= 255.0
         return img_in
 
-
+def image_adjust_ros(cv_image):
+    pad = np.zeros((16, 1280, 3), dtype=np.uint8)
+    cv_image = np.concatenate((cv_image, pad), axis=0)
+    # orig = cv_image.copy()
+    cv_image = np.transpose(cv_image, (2, 0, 1)).astype(np.float32)
+    cv_image = np.expand_dims(cv_image, axis=0)
+    cv_image /= 255.0
 
 def requestGenerator(input_name, output_name, c, h, w, format, dtype, FLAGS,
                      result_filenames):
@@ -177,7 +194,9 @@ def requestGenerator(input_name, output_name, c, h, w, format, dtype, FLAGS,
             filenames = [
                 os.path.join(FLAGS.image_filename, f)
                 for f in os.listdir(FLAGS.image_filename)
-                if os.path.isfile(os.path.join(FLAGS.image_filename, f))
+                if os.path.isfile(os.path.join(FLAGS.image_filename, f)) and
+                   (os.path.join(FLAGS.image_filename, f).endswith('jpg') or
+                    os.path.join(FLAGS.image_filename, f).endswith('png'))
             ]
         else:
             filenames = [
@@ -192,8 +211,8 @@ def requestGenerator(input_name, output_name, c, h, w, format, dtype, FLAGS,
                                            FLAGS.scaling))
 
     else:
-        pass
-        # image_data = get_image_msg()
+        print("No input data specified")
+        sys.exit()
     output0 = service_pb2.ModelInferRequest().InferRequestedOutputTensor()
     output0.name = output_name[0]
     output1 = service_pb2.ModelInferRequest().InferRequestedOutputTensor()
@@ -233,11 +252,12 @@ def requestGenerator(input_name, output_name, c, h, w, format, dtype, FLAGS,
             else:
                 input_bytes += image_data[image_idx].tobytes()
 
-            image_idx = (image_idx + 1) % len(image_data)
-            if image_idx == 0:
-                last_request = True
+                image_idx = (image_idx + 1) % len(image_data)
+                if image_idx == 0:
+                    last_request = True
 
         request.inputs.extend([input])
         result_filenames.append(input_filenames)
         request.raw_input_contents.extend([input_bytes])
         yield request
+
