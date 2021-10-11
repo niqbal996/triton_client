@@ -205,7 +205,8 @@ def requestGenerator(input_name, output_name, c, h, w, format, dtype, FLAGS,
 
         filenames.sort()
         image_data = []
-        for filename in filenames[-10:]:
+        filenames = filenames[-10:]
+        for filename in filenames:
             # img = Image.open(filename)
             image_data.append(image_adjust(filename, format, dtype, c, h, w,
                                            FLAGS.scaling))

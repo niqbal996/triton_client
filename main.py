@@ -111,8 +111,8 @@ if __name__ == '__main__':
     # Create gRPC stub for communicating with the server
     # NOTE! Depending upon the image dimensions, the message length has to be adjusted. This works for 512 x 512 x 3
     channel = grpc.insecure_channel(param['grpc_channel'], options=[
-                                   ('grpc.max_send_message_length', 7372872),
-                                   ('grpc.max_receive_message_length', 7372872),
+                                   ('grpc.max_send_message_length', FLAGS.batch_size*7372872),
+                                   ('grpc.max_receive_message_length', FLAGS.batch_size*7372872),
                                     ])
     grpc_stub = service_pb2_grpc.GRPCInferenceServiceStub(channel)
     class_names = load_class_names()
