@@ -17,7 +17,7 @@ Change permissions to following:
 chmod 700 ${HOME}/.passwd-s3fs
 ```
 
-and install an **s3fs** tool to mount the model repository from MinIO storage server in your local hard disk.
+and install an **s3fs** tool to mount the model repository from MinIO storage server in your local machine.
 
 NOTE! Do not forget to change the MinIO server IP address and the path to the model repository. 
 ```bash
@@ -27,11 +27,6 @@ s3fs modelrepository /home/path/to/model_repository -o passwd_file=${HOME}/.pass
 ```
 To read about how to setup a custom model repository, you can read the following Triton documentation [link](https://github.com/triton-inference-server/server/blob/main/docs/model_repository.md) .
 Once you have setup the model repository, you can run the triton server with docker as follows:
-
-
-This repo is targeted to reproduce a YOLOv4 onnx model export to triton server based on this repo (https://github.com/Tianxiaomo/pytorch-YOLOv4) and gRPC Image client example provided by TRITON here (https://github.com/triton-inference-server/client/blob/main/src/python/examples/grpc_image_client.py). 
-
-
 ## Deploy triton server
 For this setup, we tested it on the Triton server version 21.08. You can pull the docker image from here (NVIDIA repository [link](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/tritonserver)[https://catalog.ngc.nvidia.com/orgs/nvidia/containers/tritonserver]))
 ```bash
@@ -40,16 +35,15 @@ docker run --gpus 1 --rm -p8000:8000 -p8001:8001 -v/full/path/to/model_repositor
 ```
 You can use `--gpus all` option to allocate all the available gpus to the Triton server. Once the triton server is up, you should see the available 
 models that we can use as arguments to the client. For example in the following image:![image](./docs/images/model_repo_ready.png), 
-we have three models named `YOLOv4`, `YOLOv5` and `YOLOv5n` ready at the server. 
 
-We can pass these model names as arguments to the `main.py` for inference. 
-
+we have three models named `YOLOv4`, `YOLOv5` and `YOLOv5n` ready at the server.
+We can pass these model names as arguments to the `main.py` for inference.
 ## Performing remote inference with Client 
 
 Before you send sensor data to the Triton server, you need to select the following in `./data/client_parameter.yaml` file: 
 
 1. ROS topic you want to subscribe from sensor input e.g. `sub_topic: '/camera/color/image_raw'`
-2. ROS topic you want to publish as results e.g. `pub_topic: '/camera/color/detection'`
+2. ROS topic you want to publish as inference results e.g. `pub_topic: '/camera/color/detection'`
 3. IP address of the triton server or localhost if running locally e.g. `grpc_channel: '10.249.3.13:8001'`
 
 You can select the model, you want to use for your inference and run the following command:
