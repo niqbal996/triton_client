@@ -1,4 +1,4 @@
-# YOLOv4 gRPC client for Triton server 
+# ROS-gRPC interface client for Triton server inference
 
 This repo is a ROS-gRPC interface for remote inferencing with an Inference server e.g. Triton Inference server.
 To run this client for inference you have to do following steps:
