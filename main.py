@@ -66,7 +66,8 @@ if __name__ == '__main__':
     parser.add_argument('-m',
                         '--model-name',
                         type=str,
-                        required=True,
+                        required=False,
+                        default="YOLOv5n",
                         help='Name of model')
     parser.add_argument(
         '-x',
@@ -109,10 +110,10 @@ if __name__ == '__main__':
     with open(param_file) as file:
         param = yaml.load(file, Loader=yaml.FullLoader)
     # Create gRPC stub for communicating with the server
-    # NOTE! Depending upon the image dimensions, the message length has to be adjusted. This works for 512 x 512 x 3
+    # TODO! Make dynamic message length depending upon the size of input image.
     channel = grpc.insecure_channel(param['grpc_channel'], options=[
-                                   ('grpc.max_send_message_length', FLAGS.batch_size*7372872),
-                                   ('grpc.max_receive_message_length', FLAGS.batch_size*7372872),
+                                   ('grpc.max_send_message_length', FLAGS.batch_size*8568044),
+                                   ('grpc.max_receive_message_length', FLAGS.batch_size*8568044),
                                     ])
     grpc_stub = service_pb2_grpc.GRPCInferenceServiceStub(channel)
     class_names = load_class_names()
