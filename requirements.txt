@@ -3,3 +3,4 @@ torchvision==0.9.1
 nvidia-pyindex
 tritonclient[all]
 opencv-python
+grpcio-tools~=1.37.0
