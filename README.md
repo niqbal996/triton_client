@@ -3,6 +3,8 @@
 
 ## Triton client architecture
 
+![Triton Client]()
+
 The channel refers to `communicator.channel`, where the different types channel of communcation is implemented. To add,
 a new one extend the `BaseChannel` interface.
 
