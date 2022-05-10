@@ -3,7 +3,7 @@
 
 ## Triton client architecture
 
-![Triton Client]()
+![Triton Client](https://github.com/MISSEY/triton_client_yolo/blob/main/docs/images/triton_client.jpg)
 
 The channel refers to `communicator.channel`, where the different types channel of communcation is implemented. To add,
 a new one extend the `BaseChannel` interface.
