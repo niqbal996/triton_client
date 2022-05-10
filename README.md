@@ -1,4 +1,16 @@
+
 # ROS-gRPC interface client for Triton server inference
+
+## Triton client architecture
+
+The channel refers to `communicator.channel`, where the different types channel of communcation is implemented. To add,
+a new one extend the `BaseChannel` interface.
+
+The triton_clients refers to `trition_clients`, where the clients are implemented using available preprocess and postprocess.
+Clients are dependent of `postprocess` and `preprocess`.
+
+The inference takes channel and triton_clients object for performing inference on triton client model using given channel.
+
 
 This repo is a ROS-gRPC interface for remote inferencing with an Inference server e.g. Triton Inference server.
 To run this client for inference you have to do following steps:

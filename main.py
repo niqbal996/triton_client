@@ -42,7 +42,8 @@ from utils.postprocess import extract_boxes_triton, load_class_names
 from utils.ros_input import RealSenseNode
 
 
-from communicator.ros_communicator import RosCommunicator
+from communicator.ros_inference import RosInference
+from communicator.channel import grpc_channel
 from triton_clients.yolov4_client import Yolov4client
 
 
@@ -119,9 +120,17 @@ if __name__ == '__main__':
     with open(param_file) as file:
         param = yaml.load(file, Loader=yaml.FullLoader)
 
+    # define client
     client = Yolov4client()
-    communicator = RosCommunicator(param,FLAGS,client)
-    communicator.start_inference()
+
+    #define channel
+    channel = grpc_channel.GRPCChannel(param,FLAGS)
+
+    #define inference
+    inference = RosInference(channel,client)
+
+    #start inference
+    inference.start_inference()
 
     # # input_name, output_name, c, h, w, format, dtype = parse_model(
     # #     metadata_response, config_response.config)

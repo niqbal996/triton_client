@@ -6,62 +6,55 @@ import numpy as np
 
 from tritonclient.grpc import service_pb2, service_pb2_grpc
 import tritonclient.grpc.model_config_pb2 as mc
-
-from .base_communicator import BaseCommunicator
+from communicator.channel import grpc_channel
+from .base_inference import BaseInference
 from utils import image_util
 
 
-class RosCommunicator(BaseCommunicator):
+class RosInference(BaseInference):
 
-    def __init__(self, params, FLAGS, client):
+    def __init__(self,channel,client):
         '''
-            grpc_stub: gRPC stub to invoke ModelInfer() in this class
-            input_name: Name of the input as described by the onnx converter
-            output_name: Model output name as described by the onnx converter
-            param: Parameters taken from the yaml file for ros topic names and server URL
-            dtype: Data type of the input
-            c,h,w: Channel width height
+            channel: channel of type communicator.channel
+            client: client of type triton_clients
 
         '''
-        super().__init__(params, FLAGS, client)
+        super().__init__(channel,client)
 
         self.image = None
         self.br = CvBridge()
         self.class_names = image_util.load_class_names()
-        self.input = service_pb2.ModelInferRequest().InferInputTensor()
-        self._register_communicator()
+        self._register_inference()
+        self.client_postprocess = client.get_postprocess()
 
-    def _register_communicator(self):
+    def _register_inference(self):
         """
+        register inference
+        """
+        if type(self.channel) == grpc_channel.GRPCChannel:
+            self._set_grpc_channel_members()
+        else:
+            pass
 
+        self.detection = rospy.Publisher(self.channel.params['pub_topic'], Image, queue_size=10)
+
+    def _set_grpc_channel_members(self):
         """
-        meta_data = self.get_metadata()
-        self.input.name, output_name, c, h, w, format, self.input.datatype = self.client.parse_model(
+        """
+        meta_data = self.channel.get_metadata()
+        self.channel.input.name, output_name, c, h, w, format, self.channel.input.datatype = self.client.parse_model(
             meta_data["metadata_response"], meta_data["config_response"].config)
         self.input_size = [h, w]
         if format == mc.ModelInput.FORMAT_NHWC:
-            self.input.shape.extend([h, w, c])
+            self.channel.input.shape.extend([h, w, c])
         else:
-            self.input.shape.extend([c, h, w])
+            self.channel.input.shape.extend([c, h, w])
 
-        self.request = service_pb2.ModelInferRequest()
-        self.request.model_name = self.FLAGS.model_name
-        self.request.model_version = self.FLAGS.model_version
-        # TODO make it dynamic for all models
-        if False:
-            self.output0 = service_pb2.ModelInferRequest().InferRequestedOutputTensor()
-            self.output0.name = output_name[0]
-            self.output1 = service_pb2.ModelInferRequest().InferRequestedOutputTensor()
-            self.output1.name = output_name[1]
-            self.request.outputs.extend([self.output0, self.output1])
-        else:
-            self.output = service_pb2.ModelInferRequest().InferRequestedOutputTensor()
-            self.output.name = output_name[0]
-            self.request.outputs.extend([self.output])
-        self.detection = rospy.Publisher(self.params['pub_topic'], Image, queue_size=10)
+        self.channel.output.name = output_name[0]
+        self.channel.request.outputs.extend([self.channel.output])
 
     def start_inference(self):
-        rospy.Subscriber(self.params['sub_topic'], Image, self._callback)
+        rospy.Subscriber(self.channel.params['sub_topic'], Image, self._callback)
         rospy.spin()
 
     def _scale_boxes(self, box, normalized=False):
@@ -86,16 +79,16 @@ class RosCommunicator(BaseCommunicator):
         cv_image = self.br.imgmsg_to_cv2(msg, desired_encoding='rgb8')
         self.orig_size = cv_image.shape[0:2]
         self.orig_image = cv_image.copy()
-        cv_image = cv2.resize(cv_image, (self.input.shape[1], self.input.shape[2]))
+        cv_image = cv2.resize(cv_image, (self.channel.input.shape[1], self.channel.input.shape[2]))
         self.image = image_util.image_adjust(cv_image).astype(np.float32)
         if self.image is not None:
-            self.request.ClearField("inputs")
-            self.request.ClearField("raw_input_contents")  # Flush the previous image contents
-            self.request.inputs.extend([self.input])
-            self.request.raw_input_contents.extend([self.image.tobytes()])
+            self.channel.request.ClearField("inputs")
+            self.channel.request.ClearField("raw_input_contents")  # Flush the previous image contents
+            self.channel.request.inputs.extend([self.channel.input])
+            self.channel.request.raw_input_contents.extend([self.image.tobytes()])
             # self.request.inputs.in
-            self.response = self.get_mode().ModelInfer(self.request)  # Inference
-            self.prediction = self.client_postprocess.extract_boxes_yolov5(self.response)
+            self.channel.response = self.channel.do_inference() # Inference
+            self.prediction = self.client_postprocess.extract_boxes_yolov5(self.channel.response)
 
             for object in self.prediction[
                 0]:  # predictions array has the order [x1,y1, x2,y2, confidence, confidence, class ID]
