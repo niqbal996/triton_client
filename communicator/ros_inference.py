@@ -13,24 +13,31 @@ from utils import image_util
 
 class RosInference(BaseInference):
 
+    """
+    A RosInference to support ROS input and provide input to channel for inference.
+    """
+
     def __init__(self,channel,client):
         '''
             channel: channel of type communicator.channel
             client: client of type triton_clients
 
         '''
+
         super().__init__(channel,client)
 
         self.image = None
         self.br = CvBridge()
         self.class_names = image_util.load_class_names()
-        self._register_inference()
-        self.client_postprocess = client.get_postprocess()
+
+        self._register_inference() # register inference based on type of client
+        self.client_postprocess = client.get_postprocess() # get postprocess of client
 
     def _register_inference(self):
         """
         register inference
         """
+        # for GRPC channel
         if type(self.channel) == grpc_channel.GRPCChannel:
             self._set_grpc_channel_members()
         else:
@@ -40,10 +47,15 @@ class RosInference(BaseInference):
 
     def _set_grpc_channel_members(self):
         """
+            Set properties for grpc channel, queried from the server.
         """
+        # collect meta data of model and configuration
         meta_data = self.channel.get_metadata()
+
+        # parse the model requirements from client
         self.channel.input.name, output_name, c, h, w, format, self.channel.input.datatype = self.client.parse_model(
             meta_data["metadata_response"], meta_data["config_response"].config)
+
         self.input_size = [h, w]
         if format == mc.ModelInput.FORMAT_NHWC:
             self.channel.input.shape.extend([h, w, c])
@@ -87,7 +99,7 @@ class RosInference(BaseInference):
             self.channel.request.inputs.extend([self.channel.input])
             self.channel.request.raw_input_contents.extend([self.image.tobytes()])
             # self.request.inputs.in
-            self.channel.response = self.channel.do_inference() # Inference
+            self.channel.response = self.channel.do_inference() # perfrom the channel Inference
             self.prediction = self.client_postprocess.extract_boxes_yolov5(self.channel.response)
 
             for object in self.prediction[

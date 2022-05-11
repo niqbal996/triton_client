@@ -17,9 +17,6 @@ class Yolov4client(Client):
         """
         self._clients[clienttype] = client
 
-    def get_client(self, clienttype):
-        """
-        """
 
     def get_preprocess(self):
         return yolov4_preprocess.Yolov4preprocess()
@@ -30,7 +27,7 @@ class Yolov4client(Client):
     def parse_model(self, model_metadata, model_config):
         """
             Check the configuration of a model to make sure it meets the
-            requirements for an image classification network (as expected by
+            requirements for an image yolov4 network (as expected by
             this client)
         """
 

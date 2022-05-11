@@ -6,18 +6,22 @@ import tritonclient.grpc.model_config_pb2 as mc
 
 
 class GRPCChannel(BaseChannel):
+    """
+    A GRPCChannel is responsible for establishing connection between client and server using gRPC.
+    """
 
     def __init__(self,params,FLAGS):
         super().__init__(params,FLAGS)
         self._meta_data = {}
         self._grpc_stub = None
-        self.register_channel()
-        self._grpc_metadata()
+
+        self.register_channel() # register and initialise the stub
+        self._grpc_metadata() #
 
 
     def register_channel(self):
         """
-         register grpc triton client
+         register grpc triton channel
         """
         grpc_channel =  grpc.insecure_channel(self.params['grpc_channel'],options=[
                                    ('grpc.max_send_message_length', self.FLAGS.batch_size*8568044),
@@ -25,7 +29,6 @@ class GRPCChannel(BaseChannel):
                                     ])
         self._grpc_stub  = service_pb2_grpc.GRPCInferenceServiceStub(grpc_channel)
 
-        return None
 
     def fetch_channel(self):
         """
@@ -37,6 +40,8 @@ class GRPCChannel(BaseChannel):
         """
         Initiate all meta data required for models
         """
+        # Make sure the model matches our requirements, and get some
+        # properties of the model that we need for preprocessing
         self._meta_data["metadata_request"] = service_pb2.ModelMetadataRequest(
             name=self.FLAGS.model_name, version=self.FLAGS.model_version)
         self._meta_data["metadata_response"] = self._grpc_stub.ModelMetadata(self._meta_data["metadata_request"])
@@ -44,6 +49,8 @@ class GRPCChannel(BaseChannel):
         self._meta_data["config_request"] = service_pb2.ModelConfigRequest(name=self.FLAGS.model_name,
                                                                            version=self.FLAGS.model_version)
         self._meta_data["config_response"] = self._grpc_stub.ModelConfig(self._meta_data["config_request"])
+
+        # set
         self._set_grpc_members()
 
     def get_metadata(self):
