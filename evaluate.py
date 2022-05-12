@@ -151,7 +151,9 @@ if __name__ == '__main__':
                                  param,
                                  FLAGS,
                                  dtype,
-                                 c, h, w)
+                                 c, h, w,
+                                 visualize_gt=True,
+                                 visualize_pred=True)
         ros_node.start_evaluation()
     else:
         for request in requestGenerator(input_name, output_name, c, h, w,
