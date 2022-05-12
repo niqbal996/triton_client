@@ -41,9 +41,15 @@ from utils.preprocess import parse_model, model_dtype_to_np, requestGenerator, i
 from utils.postprocess import extract_boxes_triton, load_class_names
 from utils.ros_input import RealSenseNode
 
+
+from communicator.ros_inference import RosInference
+from communicator.channel import grpc_channel
+from triton_clients.yolov4_client import Yolov4client
+
+
 FLAGS = None
 
-if __name__ == '__main__':
+def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('-v',
                         '--verbose',
@@ -104,107 +110,106 @@ if __name__ == '__main__':
         required=False,
         default='ros',
         help='Source of input images to run inference on. Default is ROS image topic')
-    FLAGS = parser.parse_args()
+    return parser.parse_args()
+
+
+if __name__ == '__main__':
+    FLAGS = parse_args()
     rospy.init_node('ros_infer')
     param_file = rospy.get_param('client_parameter_file', './data/client_parameter.yaml')
     with open(param_file) as file:
         param = yaml.load(file, Loader=yaml.FullLoader)
-    # Create gRPC stub for communicating with the server
-    # TODO! Make dynamic message length depending upon the size of input image.
-    channel = grpc.insecure_channel(param['grpc_channel'], options=[
-                                   ('grpc.max_send_message_length', FLAGS.batch_size*8568044),
-                                   ('grpc.max_receive_message_length', FLAGS.batch_size*8568044),
-                                    ])
-    grpc_stub = service_pb2_grpc.GRPCInferenceServiceStub(channel)
-    class_names = load_class_names()
 
-    # Make sure the model matches our requirements, and get some
-    # properties of the model that we need for preprocessing
-    metadata_request = service_pb2.ModelMetadataRequest(
-        name=FLAGS.model_name, version=FLAGS.model_version)
-    metadata_response = grpc_stub.ModelMetadata(metadata_request)
+    # define client
+    client = Yolov4client()
 
-    config_request = service_pb2.ModelConfigRequest(name=FLAGS.model_name,
-                                                    version=FLAGS.model_version)
-    config_response = grpc_stub.ModelConfig(config_request)
+    #define channel
+    channel = grpc_channel.GRPCChannel(param,FLAGS)
 
-    input_name, output_name, c, h, w, format, dtype = parse_model(
-        metadata_response, config_response.config)
+    #define inference
+    inference = RosInference(channel,client)
 
-    # Send requests of FLAGS.batch_size images. If the number of
-    # images isn't an exact multiple of FLAGS.batch_size then just
-    # start over with the first images until the batch is filled.
-    requests = []
-    responses = []
-    result_filenames = []
+    #start inference
+    inference.start_inference()
 
-    # Send request
-    if FLAGS.streaming and not FLAGS.ros_topic:
-        for response in grpc_stub.ModelStreamInfer(
-                requestGenerator(input_name, output_name, c, h, w, format,
-                                 dtype, FLAGS, result_filenames)):
-            responses.append(response)
-    elif FLAGS.image_src == 'ros':
-        ros_node = RealSenseNode(grpc_stub,
-                                 input_name,
-                                 output_name,
-                                 param,
-                                 FLAGS,
-                                 dtype,
-                                 c, h, w)
-        ros_node.start_inference()
-    else:
-        for request in requestGenerator(input_name, output_name, c, h, w,
-                                        format, dtype, FLAGS, result_filenames):
-            if not FLAGS.async_set:
-                # requests.append(request)
-                response = grpc_stub.ModelInfer(request)
-                prediction = extract_boxes_triton(response)
-            else:
-                requests.append(grpc_stub.ModelInfer.future(request))
-
-    # For async, retrieve results according to the send order
-    if FLAGS.async_set:
-        for request in requests:
-            responses.append(request.result())
-
-    error_found = False
-    idx = 0
-    predictions = []
-    for response in responses:
-        if FLAGS.streaming:
-            if response.error_message != "":
-                error_found = True
-                print(response.error_message)
-            else:
-                predictions.append(extract_boxes_triton(response.infer_response, result_filenames[idx],
-                            FLAGS.batch_size))
-        else:
-            predictions.append(extract_boxes_triton(response, result_filenames[idx], FLAGS.batch_size))
-        idx += 1
-    # TODO add publish ROS message flag to display detections instead of always true.
-    # TODO the file ordering is not consistent with the inference results. TRITON must maintain the order. NOT CHAOS!!!
-    # if True:
-    #     for file, pred in zip(result_filenames, predictions):
-    #         cv_image = cv2.imread(file[0])
-    #         # cv_image = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
-    #         cv_image = cv2.resize(cv_image, (w, h), interpolation=cv2.INTER_LINEAR)
-    #         for object in pred[0]:  # predictions array has the order [x1,y1, x2,y2, confidence, confidence, class ID]
-    #             box = np.array(object[0:4], dtype=np.float32) * w
-    #             cv2.rectangle(cv_image,
-    #                           pt1=(int(box[0]), int(box[1])),
-    #                           pt2=(int(box[2]), int(box[3])),
-    #                           color=(0, 255, 0),
-    #                           thickness=1)
-    #             cv2.putText(cv_image,
-    #                         '{:.2f} {}'.format(object[-2], class_names[int(object[-1])]),
-    #                         org=(int(box[0]), int(box[1])),
-    #                         fontFace=cv2.FONT_HERSHEY_SIMPLEX,
-    #                         fontScale=0.5,
-    #                         thickness=2,
-    #                         color=(0, 255, 0))
+    # # input_name, output_name, c, h, w, format, dtype = parse_model(
+    # #     metadata_response, config_response.config)
+    # #
+    # # # Send requests of FLAGS.batch_size images. If the number of
+    # # # images isn't an exact multiple of FLAGS.batch_size then just
+    # # # start over with the first images until the batch is filled.
+    # # requests = []
+    # # responses = []
+    # # result_filenames = []
     #
-    #         cv2.imshow('prediction', cv_image)
-    #         cv2.waitKey()
+    # # Send request
+    # #Todo : change the below loc (if else) into interfaces and implementations
+    # if FLAGS.streaming and not FLAGS.ros_topic:
+    #     for response in grpc_stub.ModelStreamInfer(
+    #             requestGenerator(input_name, output_name, c, h, w, format,
+    #                              dtype, FLAGS, result_filenames)):
+    #         responses.append(response)
+    # elif FLAGS.image_src == 'ros':
+    #     ros_node = RealSenseNode(grpc_stub,
+    #                              input_name,
+    #                              output_name,
+    #                              param,
+    #                              FLAGS,
+    #                              dtype,
+    #                              c, h, w)
+    #     ros_node.start_inference()
+    # else:
+    #     for request in requestGenerator(input_name, output_name, c, h, w,
+    #                                     format, dtype, FLAGS, result_filenames):
+    #         if not FLAGS.async_set:
+    #             # requests.append(request)
+    #             response = grpc_stub.ModelInfer(request)
+    #             prediction = extract_boxes_triton(response)
+    #         else:
+    #             requests.append(grpc_stub.ModelInfer.future(request))
+    #
+    # # For async, retrieve results according to the send order
+    # if FLAGS.async_set:
+    #     for request in requests:
+    #         responses.append(request.result())
+    #
+    error_found = False
+    # idx = 0
+    # predictions = []
+    # for response in responses:
+    #     if FLAGS.streaming:
+    #         if response.error_message != "":
+    #             error_found = True
+    #             print(response.error_message)
+    #         else:
+    #             predictions.append(extract_boxes_triton(response.infer_response, result_filenames[idx],
+    #                         FLAGS.batch_size))
+    #     else:
+    #         predictions.append(extract_boxes_triton(response, result_filenames[idx], FLAGS.batch_size))
+    #     idx += 1
+    # # TODO add publish ROS message flag to display detections instead of always true.
+    # # TODO the file ordering is not consistent with the inference results. TRITON must maintain the order. NOT CHAOS!!!
+    # # if True:
+    # #     for file, pred in zip(result_filenames, predictions):
+    # #         cv_image = cv2.imread(file[0])
+    # #         # cv_image = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
+    # #         cv_image = cv2.resize(cv_image, (w, h), interpolation=cv2.INTER_LINEAR)
+    # #         for object in pred[0]:  # predictions array has the order [x1,y1, x2,y2, confidence, confidence, class ID]
+    # #             box = np.array(object[0:4], dtype=np.float32) * w
+    # #             cv2.rectangle(cv_image,
+    # #                           pt1=(int(box[0]), int(box[1])),
+    # #                           pt2=(int(box[2]), int(box[3])),
+    # #                           color=(0, 255, 0),
+    # #                           thickness=1)
+    # #             cv2.putText(cv_image,
+    # #                         '{:.2f} {}'.format(object[-2], class_names[int(object[-1])]),
+    # #                         org=(int(box[0]), int(box[1])),
+    # #                         fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+    # #                         fontScale=0.5,
+    # #                         thickness=2,
+    # #                         color=(0, 255, 0))
+    # #
+    # #         cv2.imshow('prediction', cv_image)
+    # #         cv2.waitKey()
     if error_found:
         sys.exit(1)
