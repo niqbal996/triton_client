@@ -1,4 +1,4 @@
-./utils/__pycache__/*
+./utils/__pycache__
 .idea/
-models/__pycache__/
-tools/__pycache__/
+models/__pycache__
+tools/__pycache__
