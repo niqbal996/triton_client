@@ -1,10 +1,9 @@
 # Parameter for the ROS Client
 # Communication parameter
 grpc_channel: '0.0.0.0:8001'       # triton inference server
-#grpc_channel: '10.249.3.13:50051'       # Agrigaia workstation 3 inference server
-#grpc_channel: 'localhost:50051'        # Local inference server: Not recommended with Gazebo simulation
 
 # Data parameter
 # Image topic from AI-test-field simulation
 sub_topic: '/camera/color/image_raw'  # subscriber
 pub_topic: '/camera/color/detection'  # publisher
+gt_topic: '/camera/color/Detection2DArray'  # groundtruth topic for the raw_data from sub_topic
