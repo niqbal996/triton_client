@@ -1,10 +1,10 @@
 from .base_client import Client
-from preprocess import yolov4_preprocess
-from postprocess import yolov4_postprocess
+from preprocess import yolov5_preprocess
+from postprocess import yolov5_postprocess
 import tritonclient.grpc.model_config_pb2 as mc
 
 
-class Yolov4client(Client):
+class Yolov5client(Client):
     """
     """
 
@@ -19,10 +19,10 @@ class Yolov4client(Client):
 
 
     def get_preprocess(self):
-        return yolov4_preprocess.Yolov4preprocess()
+        return yolov5_preprocess.Yolov4preprocess()
 
     def get_postprocess(self):
-        return yolov4_postprocess.Yolov4postprocess()
+        return yolov5_postprocess.Yolov4postprocess()
 
     def parse_model(self, model_metadata, model_config):
         """
