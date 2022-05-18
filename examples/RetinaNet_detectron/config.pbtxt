@@ -1,0 +1,34 @@
+name: "test_model"
+platform: "pytorch_libtorch"
+max_batch_size : 0
+input [
+  {
+    name: "input__00"
+    data_type: TYPE_FP32
+    format: FORMAT_NCHW
+    dims: [ 3, 640, 480 ]
+    #reshape { shape: [ 1, 3, 640, 480 ] }
+  }
+]
+output [
+  {
+    name: "bboxex__0"
+    data_type: TYPE_FP32
+    dims: [-1,4]
+  },
+  {
+    name: "classes__1"
+    data_type: TYPE_INT64
+    dims: [-1]
+  },
+  {
+    name: "scores__2"
+    data_type: TYPE_FP32
+    dims: [-1]
+  },
+  {
+    name: "dims__3"
+    data_type: TYPE_INT64
+    dims: [1, 2]
+  }
+]
