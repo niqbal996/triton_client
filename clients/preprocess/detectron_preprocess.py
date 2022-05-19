@@ -1,4 +1,4 @@
-from base_preprocess import Preprocess
+from .base_preprocess import Preprocess
 class FCOSpreprocess(Preprocess):
 
     def __init__(self):

@@ -1,6 +1,6 @@
 from .base_client import Client
-from ..preprocess import FCOSpreprocess
-from ..postprocess import FCOSpostprocess
+from .preprocess import FCOSpreprocess
+from .postprocess import FCOSpostprocess
 class FCOS_client(Client):
     """
 
