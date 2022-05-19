@@ -8,7 +8,7 @@ from tritonclient.grpc import service_pb2, service_pb2_grpc
 import tritonclient.grpc.model_config_pb2 as mc
 from .channel import grpc_channel
 from .base_inference import BaseInference
-from utils import image_util
+# from utils import image_util
 
 
 class RosInference(BaseInference):
@@ -17,21 +17,22 @@ class RosInference(BaseInference):
     A RosInference to support ROS input and provide input to channel for inference.
     """
 
-    def __init__(self,channel,client):
+    def __init__(self, channel, client):
         '''
             channel: channel of type communicator.channel
             client: client of type clients
 
         '''
 
-        super().__init__(channel,client)
+        super().__init__(channel, client)
 
         self.image = None
         self.br = CvBridge()
-        self.class_names = image_util.load_class_names()
+        self.class_names = self.load_class_names()
 
         self._register_inference() # register inference based on type of client
         self.client_postprocess = client.get_postprocess() # get postprocess of client
+        self.client_preprocess = client.get_preprocess()
 
     def _register_inference(self):
         """
@@ -110,7 +111,7 @@ class RosInference(BaseInference):
         self.orig_size = cv_image.shape[0:2]
         self.orig_image = cv_image.copy()
         cv_image = cv2.resize(cv_image, (self.channel.input.shape[1], self.channel.input.shape[2]))
-        self.image = image_util.image_adjust(cv_image).astype(np.float32)
+        self.image = self.client_preprocess.image_adjust(cv_image)
         if self.image is not None:
             self.channel.request.ClearField("inputs")
             self.channel.request.ClearField("raw_input_contents")  # Flush the previous image contents

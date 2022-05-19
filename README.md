@@ -87,7 +87,7 @@ Now your sensor input will be fed to the triton server as gRPC messages and the 
 visualize in the ROS ecosystem with rviz. 
 
 ## Updates and TODOs
-- [x] Restructuring the repo for adding new clients for new models [@Saurabh Kumar](https://github.com/MISSEY)
+- [x] Restructuring the repo for adding new clients for new models (Big thanks to [@Saurabh Kumar](https://github.com/MISSEY))
 - [x] Added example FCOS model from detectron
 - [x] Added an evaluation script from ROS vision messages. 
 - [x] Added example configuration files for different triton models. 
