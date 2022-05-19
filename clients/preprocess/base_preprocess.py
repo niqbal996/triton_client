@@ -1,11 +1,11 @@
-from __future__ import annotations
+# from __future__ import annotations
 from abc import ABC, abstractmethod
 
-class Postprocess(ABC):
+class Preprocess(ABC):
     """
 
     """
     @abstractmethod
-    def postprocess(self):
+    def preprocess(self):
         """
         """

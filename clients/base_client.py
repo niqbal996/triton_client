@@ -1,28 +1,33 @@
-from .base_client import Client
-from preprocess import yolov5_preprocess
-from postprocess import yolov5_postprocess
+# from __future__ import annotations
+from abc import ABC, abstractmethod
 import tritonclient.grpc.model_config_pb2 as mc
 
-
-class Yolov5client(Client):
+class Client(ABC):
     """
+        Declares the functionality for several clients for triton server
     """
 
-    def __init__(self, ):
-        super().__init__()
+    def __init__(self):
+        self._clients = {}
 
-    def register_client(self, clienttype, client):
+    @abstractmethod
+    def register_client(self,clienttype,client):
         """
         Implement the method to register the client for
         """
-        self._clients[clienttype] = client
 
+    # # @abstractmethod
+    # def get_client(self,clienttype):
+    #     """
+    #     """
 
-    def get_preprocess(self):
-        return yolov5_preprocess.Yolov4preprocess()
-
+    @abstractmethod
     def get_postprocess(self):
-        return yolov5_postprocess.Yolov4postprocess()
+        """
+        """
+    @abstractmethod
+    def get_preprocess(self):
+        """"""
 
     def parse_model(self, model_metadata, model_config):
         """
@@ -98,3 +103,5 @@ class Yolov5client(Client):
 
         return (input_metadata.name, [output.name for output in output_metadata], c, h, w,
                 input_config.format, input_metadata.datatype)
+
+

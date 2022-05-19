@@ -6,7 +6,7 @@ import numpy as np
 
 from tritonclient.grpc import service_pb2, service_pb2_grpc
 import tritonclient.grpc.model_config_pb2 as mc
-from communicator.channel import grpc_channel
+from .channel import grpc_channel
 from .base_inference import BaseInference
 from utils import image_util
 
@@ -20,7 +20,7 @@ class RosInference(BaseInference):
     def __init__(self,channel,client):
         '''
             channel: channel of type communicator.channel
-            client: client of type triton_clients
+            client: client of type clients
 
         '''
 
@@ -62,8 +62,26 @@ class RosInference(BaseInference):
         else:
             self.channel.input.shape.extend([c, h, w])
 
-        self.channel.output.name = output_name[0]
-        self.channel.request.outputs.extend([self.channel.output])
+        if len(output_name) > 1:  # Models with multiple outputs Boxes, Classes and scores
+            self.output0 = service_pb2.ModelInferRequest().InferRequestedOutputTensor() # boxes
+            self.output0.name = output_name[0]
+            self.output1 = service_pb2.ModelInferRequest().InferRequestedOutputTensor() # class_IDs
+            self.output1.name = output_name[1]
+            self.output2 = service_pb2.ModelInferRequest().InferRequestedOutputTensor() # scores
+            self.output2.name = output_name[2]
+            self.output3 = service_pb2.ModelInferRequest().InferRequestedOutputTensor() # image dims
+            self.output3.name = output_name[3]
+
+            self.channel.request.outputs.extend([self.output0,
+                                                 self.output1,
+                                                 self.output2,
+                                                 self.output3])
+        else:
+            self.output = service_pb2.ModelInferRequest().InferRequestedOutputTensor()
+            self.output.name = output_name[0]
+            self.channel.request.outputs.extend(self.output)
+        # self.channel.output.name = output_name[0]
+        # self.channel.request.outputs.extend([self.channel.output])
 
     def start_inference(self):
         rospy.Subscriber(self.channel.params['sub_topic'], Image, self._callback)
@@ -98,12 +116,11 @@ class RosInference(BaseInference):
             self.channel.request.ClearField("raw_input_contents")  # Flush the previous image contents
             self.channel.request.inputs.extend([self.channel.input])
             self.channel.request.raw_input_contents.extend([self.image.tobytes()])
-            # self.request.inputs.in
-            self.channel.response = self.channel.do_inference() # perfrom the channel Inference
-            self.prediction = self.client_postprocess.extract_boxes_yolov5(self.channel.response)
+            self.channel.response = self.channel.do_inference() # perform the channel Inference
+            self.prediction = self.client_postprocess.extract_boxes(self.channel.response)
 
-            for object in self.prediction[
-                0]:  # predictions array has the order [x1,y1, x2,y2, confidence, confidence, class ID]
+            for object in self.prediction[0]:  # predictions array has the order [x1,y1, x2,y2, confidence,
+                                                                                # confidence, class ID]
                 box = np.array(object[0:4], dtype=np.float32)
                 box = self._scale_boxes(box, normalized=False)
                 if int(object[5]) == 0:
