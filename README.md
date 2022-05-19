@@ -17,40 +17,58 @@ The inference takes channel and triton_clients object for performing inference o
 This repo is a ROS-gRPC interface for remote inferencing with an Inference server e.g. Triton Inference server.
 To run this client for inference you have to do following steps:
 
-## Setup the model repository
-Before you run the Triton server, you need to setup the model repository for the triton server. These are the models that will be fed with sensor data/samples
-later on from the client in this repo. I have setup a model repository for the project in the Minio server. To use it with Triton server, you will need 
-access credentials to the MinIO server (contact Naeem).
+[//]: # (## Setup the model repository)
 
-Once you have your credentials to MinIO, you can put them in a file in your home directory (e.g. in .password-s3fs file) as follows:
-```bash
-YOUR_MINIO_USERNAME:YOUR_MINIO_PASSWORD
-```
-Change permissions to following:
-```bash
-chmod 700 ${HOME}/.passwd-s3fs
-```
+[//]: # (Before you run the Triton server, you need to setup the model repository for the triton server. These are the models that will be fed with sensor data/samples)
 
-and install an **s3fs** tool to mount the model repository from MinIO storage server in your local machine.
+[//]: # (later on from the client in this repo. I have setup a model repository for the project in the Minio server. To use it with Triton server, you will need )
 
-NOTE! Do not forget to change the MinIO server IP address and the path to the model repository. 
-```bash
-sudo apt-get update
-sudo apt install s3fs
-s3fs modelrepository /home/path/to/model_repository -o passwd_file=${HOME}/.passwd-s3fs -o url=http://MINIO_SERVER_IP:9000 -o use_path_request_style -o allow_other
-```
-To read about how to setup a custom model repository, you can read the following Triton documentation [link](https://github.com/triton-inference-server/server/blob/main/docs/model_repository.md) .
+[//]: # (access credentials to the MinIO server &#40;contact Naeem&#41;.)
+
+[//]: # ()
+[//]: # (Once you have your credentials to MinIO, you can put them in a file in your home directory &#40;e.g. in .password-s3fs file&#41; as follows:)
+
+[//]: # (```bash)
+
+[//]: # (YOUR_MINIO_USERNAME:YOUR_MINIO_PASSWORD)
+
+[//]: # (```)
+
+[//]: # (Change permissions to following:)
+
+[//]: # (```bash)
+
+[//]: # (chmod 700 ${HOME}/.passwd-s3fs)
+
+[//]: # (```)
+
+[//]: # ()
+[//]: # (and install an **s3fs** tool to mount the model repository from MinIO storage server in your local machine.)
+
+[//]: # ()
+[//]: # (NOTE! Do not forget to change the MinIO server IP address and the path to the model repository. )
+
+[//]: # (```bash)
+
+[//]: # (sudo apt-get update)
+
+[//]: # (sudo apt install s3fs)
+
+[//]: # (s3fs modelrepository /home/path/to/model_repository -o passwd_file=${HOME}/.passwd-s3fs -o url=http://MINIO_SERVER_IP:9000 -o use_path_request_style -o allow_other)
+
+[//]: # (```)
+To read about how to setup a custom model repository, you can read the following [Triton documentation](https://github.com/triton-inference-server/server/blob/main/docs/model_repository.md)
 Once you have setup the model repository, you can run the triton server with docker as follows:
 ## Deploy triton server
-For this setup, we tested it on the Triton server version 21.08. You can pull the docker image from here (NVIDIA repository [link](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/tritonserver)[https://catalog.ngc.nvidia.com/orgs/nvidia/containers/tritonserver]))
+For this setup, we tested it on the Triton server version 21.08. You can pull the docker image from [NGC catalog](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/tritonserver).
 ```bash
-docker pull nvcr.io/nvidia/tritonserver:21.08-py3
-docker run --gpus 1 --rm -p8000:8000 -p8001:8001 -v/full/path/to/model_repository:/models nvcr.io/nvidia/tritonserver:21.08-py3 tritonserver --model-repository=/models
+docker pull nvcr.io/nvidia/tritonserver:22.04-py3
+docker run --gpus 1 --rm -p8000:8000 -p8001:8001 -v/full/path/to/model_repository:/models nvcr.io/nvidia/tritonserver:22.04-py3 tritonserver --model-repository=/models
 ```
 You can use `--gpus all` option to allocate all the available gpus to the Triton server. Once the triton server is up, you should see the available 
 models that we can use as arguments to the client. For example in the following image:![image](./docs/images/model_repo_ready.png), 
 
-we have three models named `YOLOv4`, `YOLOv5` and `YOLOv5n` ready at the server.
+we have two models named `FCOS_detectron` and `YOLOv5nCROP` and  ready at the server.
 We can pass these model names as arguments to the `main.py` for inference.
 ## Performing remote inference with Client 
 
@@ -63,25 +81,29 @@ Before you send sensor data to the Triton server, you need to select the followi
 You can select the model, you want to use for your inference and run the following command:
 
 ```python
-python3 main.py --m YOLOv5n
+python3 main.py -m YOLOv5n
 ```
 Now your sensor input will be fed to the triton server as gRPC messages and the resulting inference image will be published as ROS topic which you can 
 visualize in the ROS ecosystem with rviz. 
 
-#TODOs
-1. Perform batched inference input.
-2. Variable gRPC inference message size according to size of the image.
-3. Ensemble mode with multiple models. 
-4. Upload new models with a bash script to the MinIO model repository. 
+## Updates and TODOs
+- [x] Restructuring the repo for adding new clients for new models [@Saurabh Kumar](https://github.com/MISSEY)
+- [x] Added example FCOS model from detectron
+- [x] Added an evaluation script from ROS vision messages. 
+- [x] Added example configuration files for different triton models. 
+- [ ] Refactor the evaluation script. 
+- [ ] Variable gRPC inference message size according to size of the image. 
+- [ ] Ensemble mode with multiple models. 
+- [ ] Add a minio based model repository(optional). 
 
 ## Acknowledgements
 
 This repo is heavily based on the work of following repositories, and is only used to setup as a demo of ROS-gRPC-Triton ecosystem. 
 If you are interested in their work, give them a thumbs up here:
 
-1. [YOLOv5](https://github.com/ultralytics/yolov5) 
-2. [PyTorch YOLOv4](https://github.com/Tianxiaomo/pytorch-YOLOv4)
+1. [YOLOv5](https://github.com/ultralytics/yolov5)
 3. [Triton inference server](https://github.com/triton-inference-server/server)
-4. [Trion client](https://github.com/triton-inference-server/client)
+4. [Triton client](https://github.com/triton-inference-server/client)
+5. [Detectron2](https://github.com/facebookresearch/detectron2/tree/main/projects)
 
 
