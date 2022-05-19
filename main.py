@@ -26,25 +26,25 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import argparse
-import numpy as np
-import sys
+# import numpy as np
+# import sys
 import rospy
 import yaml
 
-import grpc
-import cv2
+# import grpc
+# import cv2
+#
+# from tritonclient.grpc import service_pb2, service_pb2_grpc
+# import tritonclient.grpc.model_config_pb2 as mc
+#
+# from utils.preprocess import parse_model, model_dtype_to_np, requestGenerator, image_adjust
+# from utils.postprocess import extract_boxes_triton, load_class_names
+# from utils.ros_input import RealSenseNode
 
-from tritonclient.grpc import service_pb2, service_pb2_grpc
-import tritonclient.grpc.model_config_pb2 as mc
 
-from utils.preprocess import parse_model, model_dtype_to_np, requestGenerator, image_adjust
-from utils.postprocess import extract_boxes_triton, load_class_names
-from utils.ros_input import RealSenseNode
-
-
-from communicator.ros_inference import RosInference
+from communicator import RosInference
 from communicator.channel import grpc_channel
-from triton_clients.yolov4_client import Yolov4client
+from clients import Yolov5client, FCOS_client
 
 
 FLAGS = None
@@ -73,6 +73,7 @@ def parse_args():
                         '--model-name',
                         type=str,
                         required=False,
+                        choices=['YOLOv5n', 'FCOS', 'test_model'],
                         default="YOLOv5n",
                         help='Name of model')
     parser.add_argument(
@@ -121,13 +122,18 @@ if __name__ == '__main__':
         param = yaml.load(file, Loader=yaml.FullLoader)
 
     # define client
-    client = Yolov4client()
+    if 'yolo' in FLAGS.model_name:
+        client = Yolov5client()
+    elif 'fcos' in FLAGS.model_name:
+        client = FCOS_client()
+    else:
+        client = FCOS_client() # TODO DEBUG
 
     #define channel
-    channel = grpc_channel.GRPCChannel(param,FLAGS)
+    channel = grpc_channel.GRPCChannel(param, FLAGS)
 
     #define inference
-    inference = RosInference(channel,client)
+    inference = RosInference(channel, client)
 
     #start inference
     inference.start_inference()
@@ -173,43 +179,3 @@ if __name__ == '__main__':
     #     for request in requests:
     #         responses.append(request.result())
     #
-    error_found = False
-    # idx = 0
-    # predictions = []
-    # for response in responses:
-    #     if FLAGS.streaming:
-    #         if response.error_message != "":
-    #             error_found = True
-    #             print(response.error_message)
-    #         else:
-    #             predictions.append(extract_boxes_triton(response.infer_response, result_filenames[idx],
-    #                         FLAGS.batch_size))
-    #     else:
-    #         predictions.append(extract_boxes_triton(response, result_filenames[idx], FLAGS.batch_size))
-    #     idx += 1
-    # # TODO add publish ROS message flag to display detections instead of always true.
-    # # TODO the file ordering is not consistent with the inference results. TRITON must maintain the order. NOT CHAOS!!!
-    # # if True:
-    # #     for file, pred in zip(result_filenames, predictions):
-    # #         cv_image = cv2.imread(file[0])
-    # #         # cv_image = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
-    # #         cv_image = cv2.resize(cv_image, (w, h), interpolation=cv2.INTER_LINEAR)
-    # #         for object in pred[0]:  # predictions array has the order [x1,y1, x2,y2, confidence, confidence, class ID]
-    # #             box = np.array(object[0:4], dtype=np.float32) * w
-    # #             cv2.rectangle(cv_image,
-    # #                           pt1=(int(box[0]), int(box[1])),
-    # #                           pt2=(int(box[2]), int(box[3])),
-    # #                           color=(0, 255, 0),
-    # #                           thickness=1)
-    # #             cv2.putText(cv_image,
-    # #                         '{:.2f} {}'.format(object[-2], class_names[int(object[-1])]),
-    # #                         org=(int(box[0]), int(box[1])),
-    # #                         fontFace=cv2.FONT_HERSHEY_SIMPLEX,
-    # #                         fontScale=0.5,
-    # #                         thickness=2,
-    # #                         color=(0, 255, 0))
-    # #
-    # #         cv2.imshow('prediction', cv_image)
-    # #         cv2.waitKey()
-    if error_found:
-        sys.exit(1)
