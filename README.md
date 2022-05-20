@@ -91,6 +91,7 @@ visualize in the ROS ecosystem with rviz.
 - [x] Added example FCOS model from detectron
 - [x] Added an evaluation script from ROS vision messages. 
 - [x] Added example configuration files for different triton models. 
+- [ ] Dockerize the whole client repo.
 - [ ] Refactor the evaluation script. 
 - [ ] Variable gRPC inference message size according to size of the image. 
 - [ ] Ensemble mode with multiple models. 
