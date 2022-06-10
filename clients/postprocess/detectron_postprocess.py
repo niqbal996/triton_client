@@ -14,6 +14,15 @@ class FCOSpostprocess(Postprocess):
     def postprocess(self):
         pass
 
+    def load_class_names(self, namesfile='./data/crop.names'):
+        class_names = []
+        with open(namesfile, 'r') as fp:
+            lines = fp.readlines()
+        for line in lines:
+            line = line.rstrip()
+            class_names.append(line)
+        return class_names
+
     def extract_boxes(self, prediction):
         """Runs Non-Maximum Suppression (NMS) on inference results
 
