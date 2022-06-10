@@ -8,15 +8,3 @@ class BaseInference(ABC):
     def __init__(self, channel:base_channel.BaseChannel, client):
         self.channel = channel
         self.client = client
-
-    def load_class_names(self, namesfile='./data/crop.names'):
-        class_names = []
-        with open(namesfile, 'r') as fp:
-            lines = fp.readlines()
-        for line in lines:
-            line = line.rstrip()
-            class_names.append(line)
-        return class_names
-
-
-
