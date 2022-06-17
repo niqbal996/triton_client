@@ -63,7 +63,7 @@ Once you have setup the model repository, you can run the triton server with doc
 For this setup, we tested it on the Triton server version 21.08. You can pull the docker image from [NGC catalog](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/tritonserver).
 ```bash
 docker pull nvcr.io/nvidia/tritonserver:22.04-py3
-docker run --gpus 1 --rm -p8000:8000 -p8001:8001 -v/full/path/to/model_repository:/models nvcr.io/nvidia/tritonserver:22.04-py3 tritonserver --model-repository=/models
+docker run --gpus 1 --rm -p8000:8000 -p8001:8001 -p8002:8002 -v/full/path/to/model_repository:/models nvcr.io/nvidia/tritonserver:22.04-py3 tritonserver --model-repository=/models --allow-metrics 1 
 ```
 You can use `--gpus all` option to allocate all the available gpus to the Triton server. Once the triton server is up, you should see the available 
 models that we can use as arguments to the client. For example in the following image:![image](./docs/images/model_repo_ready.png), 
@@ -81,10 +81,32 @@ Before you send sensor data to the Triton server, you need to select the followi
 You can select the model, you want to use for your inference and run the following command:
 
 ```python
-python3 main.py -m YOLOv5n
+python3 main.py -m YOLOv5nCROP
 ```
 Now your sensor input will be fed to the triton server as gRPC messages and the resulting inference image will be published as ROS topic which you can 
 visualize in the ROS ecosystem with rviz. 
+# Run prometheus (Optional)
+To visualize the triton metrics on a grafana dashboard you need to download and run prometheus first [download link](https://prometheus.io/download/)
+(tested with version 2.35.0). You need to update its configuration .yaml file to provide triton backend as below: 
+```yaml
+  - job_name: 'triton_backend'
+    static_configs:
+      - targets: ['localhost:8002']
+```
+For your reference there is a full configuration file provided here as well [configuration](data/prometheus.yml). Now 
+run prometheus as follows:
+```bash
+./prometheus --config.file=prometheus.yml
+```
+You can check if it is receiving the metrics from Triton at [http://localhost:9090](http://localhost:9090).
+# Run Grafana dashboard
+To run grafana dashboard, you can use its docker container. Simply run 
+```bash
+docker run --net=host grafana/grafana:latest
+```
+Go to the URL [http://localhost:3000](http://localhost:3000). Login with username: **_admin_** and password **_admin_**.
+For first time setup, you need to provide the prometheus backend as data source. Use the following 
+[link](https://prometheus.io/docs/visualization/grafana/) for that.  
 
 ## Updates and TODOs
 - [x] Restructuring the repo for adding new clients for new models (Big thanks to [@Saurabh Kumar](https://github.com/MISSEY))
