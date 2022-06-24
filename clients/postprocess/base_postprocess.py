@@ -28,7 +28,7 @@ class Postprocess(ABC):
         strs = list()
         offset = 0
         val_buf = encoded_tensor
-        datatype = "f"  # TODO BUG remove
+        datatype = "l"
         l = struct.calcsize(datatype)
         while offset < len(val_buf):
             sb = struct.unpack_from(datatype, val_buf, offset)[0]

@@ -2,6 +2,8 @@ import rospy
 from sensor_msgs.msg import Image
 from vision_msgs.msg import Detection2DArray
 from cv_bridge import CvBridge
+
+import time
 import cv2
 import numpy as np
 
@@ -110,6 +112,7 @@ class EvaluateInference(BaseInference):
         self.inference_topic = rospy.Subscriber(self.channel.params['sub_topic'], Image, self.image_callback)
         self.gt_topic = rospy.Subscriber(self.channel.params['gt_topic'], Detection2DArray, self.gt_callback)
         rospy.loginfo('Waiting until all the Rosbag messages are processed . . .')
+        time.sleep(20)  # TODO wait until the inference is done, NO HARDCODING!
         statistics = self.calculate_metrics()
         statistics = [np.concatenate(x, 0) for x in zip(*statistics)]
         names = {0: 'Weeds', 1: 'Maize'}
@@ -405,13 +408,14 @@ class EvaluateInference(BaseInference):
 
     def calculate_metrics(self):
         import torch
-
-        while True:
+        stats = []
+        for msg_number in range(len(self.all_groundtruths)):
             # wait until all the rosbag messages are finished
+            rospy.loginfo('Processing message number {} out of {} . . .'.format(msg_number, len(self.all_groundtruths)))
             if self.img_processed and self.gt_processed:    # Processing DONE!!!!
                 rospy.loginfo('Anaylzed all the rosbag messages. Calculating metrics now . . .')
-                iou = self.client_postprocess.box_iou(torch.tensor(self.all_groundtruths[0]['ground_truths'][:, :4]),
-                            torch.tensor(self.all_predictions[0]['prediction'][:, :4]))
+                iou = self.client_postprocess.box_iou(torch.tensor(self.all_groundtruths[msg_number]['ground_truths'][:, :4]),
+                            torch.tensor(self.all_predictions[msg_number]['prediction'][:, :4]))
                 iouv = torch.tensor([0.5, 0.55, 0.6, 0.65, 0.70, 0.75, 0.80, 0.85, 0.9, 0.95])
                 labelsn = torch.unsqueeze(torch.tensor(self.all_groundtruths[0]['ground_truths'][:, 5]), 1)
                 detections = torch.tensor(self.all_predictions[0]['prediction'][:, 5])
@@ -430,10 +434,8 @@ class EvaluateInference(BaseInference):
                     matches = torch.Tensor(matches)
                     # correct[matches[:, 1].long()] = matches[:, 2:3] >= iouv
                     correct[matches[:, 1].long()] = matches[:, 2:3] >= iouv
-                    stats = []
                     stats.append((correct.cpu(),
-                                  self.all_predictions[0]['prediction'][:, 4],
-                                  self.all_predictions[0]['prediction'][:, 5],
-                                  self.all_groundtruths[0]['ground_truths'][:, 5]))
-                break
+                                  self.all_predictions[msg_number]['prediction'][:, 4],
+                                  self.all_predictions[msg_number]['prediction'][:, 5],
+                                  self.all_groundtruths[msg_number]['ground_truths'][:, 5]))
         return stats
