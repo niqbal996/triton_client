@@ -6,6 +6,7 @@ from cv_bridge import CvBridge
 import time
 import cv2
 import numpy as np
+from waiting import wait
 
 from tritonclient.grpc import service_pb2, service_pb2_grpc
 import tritonclient.grpc.model_config_pb2 as mc
@@ -410,19 +411,16 @@ class EvaluateInference(BaseInference):
         import torch
         stats = []
         for msg_number in range(len(self.all_groundtruths)):
-            # wait until all the rosbag messages are finished
-            rospy.loginfo('Processing message number {} out of {} . . .'.format(msg_number, len(self.all_groundtruths)))
+            rospy.loginfo('Processing message number {} out of {} . . .'.format(msg_number+1, len(self.all_groundtruths)))
             if self.img_processed and self.gt_processed:    # Processing DONE!!!!
-                rospy.loginfo('Anaylzed all the rosbag messages. Calculating metrics now . . .')
-                iou = self.client_postprocess.box_iou(torch.tensor(self.all_groundtruths[msg_number]['ground_truths'][:, :4]),
-                            torch.tensor(self.all_predictions[msg_number]['prediction'][:, :4]))
+                iou = self.client_postprocess.box_iou(
+                    torch.tensor(self.all_groundtruths[msg_number]['ground_truths'][:, :4]),
+                    torch.tensor(self.all_predictions[msg_number]['prediction'][:, :4]))
                 iouv = torch.tensor([0.5, 0.55, 0.6, 0.65, 0.70, 0.75, 0.80, 0.85, 0.9, 0.95])
-                labelsn = torch.unsqueeze(torch.tensor(self.all_groundtruths[0]['ground_truths'][:, 5]), 1)
-                detections = torch.tensor(self.all_predictions[0]['prediction'][:, 5])
+                labelsn = torch.unsqueeze(torch.tensor(self.all_groundtruths[msg_number]['ground_truths'][:, 5]), 1)
+                detections = torch.tensor(self.all_predictions[msg_number]['prediction'][:, 5])
                 correct = torch.zeros(detections.shape[0], iouv.shape[0], dtype=torch.bool, device=iouv.device)
-                # iou = torch.transpose(iou, dim0=1, dim1=0)
                 x = torch.where((iou >= iouv[0]) & (labelsn == detections))  # IoU above threshold and classes match
-                # x = torch.where((iou >= iouv))  # IoU above threshold and classes match
                 if x[0].shape[0]:
                     matches = torch.cat((torch.stack(x, 1), iou[x[0], x[1]][:, None]),
                                         1).cpu().numpy()  # [label, detection, iou]
@@ -432,7 +430,6 @@ class EvaluateInference(BaseInference):
                         # matches = matches[matches[:, 2].argsort()[::-1]]
                         matches = matches[np.unique(matches[:, 0], return_index=True)[1]]
                     matches = torch.Tensor(matches)
-                    # correct[matches[:, 1].long()] = matches[:, 2:3] >= iouv
                     correct[matches[:, 1].long()] = matches[:, 2:3] >= iouv
                     stats.append((correct.cpu(),
                                   self.all_predictions[msg_number]['prediction'][:, 4],
