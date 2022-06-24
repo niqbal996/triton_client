@@ -31,12 +31,8 @@ class FCOSpostprocess(Postprocess):
             """
         boxes = self.deserialize_bytes_float(prediction.raw_output_contents[0])
         boxes = np.reshape(boxes, prediction.outputs[0].shape)
-        # TODO class_ids are all zeros? BUG in unpacking or inferencing?
-        # class_ids = deserialize_bytes_int(prediction.raw_output_contents[1])
-        # class_ids = np.reshape(class_ids, prediction.outputs[1].shape * 2) # TODO DEBUG: Remove after debug *2
+        class_ids = self.deserialize_bytes_int(prediction.raw_output_contents[1])
         scores = self.deserialize_bytes_float(prediction.raw_output_contents[2])
         scores = np.reshape(scores, prediction.outputs[2].shape)
-        class_ids = [0] * len(scores) # TODO remove after debug! dummy values for class IDs remove
-        # prediction = boxes
 
         return boxes, class_ids, scores
