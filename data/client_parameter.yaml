@@ -1,6 +1,6 @@
 # Parameter for the ROS Client
 # Communication parameter
-grpc_channel: '0.0.0.0:8001'       # triton inference server
+grpc_channel: '10.249.3.13:8001'       # triton inference server
 
 # Data parameter
 # Image topic from AI-test-field simulation

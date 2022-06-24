@@ -11,6 +11,7 @@ from .channel import grpc_channel
 from .base_inference import BaseInference
 # from utils import image_util
 
+from prometheus_client import start_http_server, Summary, Histogram
 
 class EvaluateInference(BaseInference):
 
@@ -43,6 +44,18 @@ class EvaluateInference(BaseInference):
         self.bag_processed = False
         self.gt_processed = False
         self.img_processed = False
+
+        rospy.loginfo('Starting Prometheus Server on Port 7658')
+        # a server which sends our metrics to the port 7658
+        self.prometheus_server = start_http_server(7658)
+
+        # sending metrics via prometheus client
+        self.p_summary = Histogram('precision', 'Precision of the Model')
+        self.r_summary = Histogram('recall', 'Recall of the Model')
+        self.ap_summary = Histogram('ap', 'Average Precision of the Model')
+        self.f1_summary = Histogram('fone', 'F1 Metric of the Model')
+        self.ap_class_summary = Histogram('ap_class', 'Average Precision per Class of the Model')
+
     def _register_inference(self):
         """
         register inference
@@ -101,6 +114,19 @@ class EvaluateInference(BaseInference):
         statistics = [np.concatenate(x, 0) for x in zip(*statistics)]
         names = {0: 'Weeds', 1: 'Maize'}
         p, r, ap, f1, ap_class = self.ap_per_class(*statistics, names=names)
+
+        rospy.loginfo('Sending Metrics to Prometheus')
+
+        # sending information to metric objects
+        # the metrics are a list, and each value has to be sent separately
+        [self.p_summary.observe(_) for _ in p]
+        [self.r_summary.observe(_) for _ in r]
+        #[self.ap_summary.observe(_) for _ in ap]
+        [self.f1_summary.observe(_) for _ in f1]
+        [self.ap_class_summary.observe(_) for _ in ap_class]
+
+        rospy.loginfo('Sent Metrics to Prometheus')
+
         rospy.spin()
         # if self.show_gt:
         #     self.visualize_gt()
