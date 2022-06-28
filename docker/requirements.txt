@@ -1,0 +1,3 @@
+tritonclient[grpc]
+pyyaml~=6.0
+
