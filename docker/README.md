@@ -5,8 +5,8 @@ This Dockerfile builds a Triton client image with ROS noetic, CV bridge and Open
 ## Usage
 
 ```bash
-sudo -H DOCKER_BUILDKIT=1 nvidia-docker build --build-arg WHEEL_FILE=docker/jetson/onnxruntime_gpu-1.8.0-cp36-cp36m-linux_aarch64.whl -f docker/jetson/Dockerfile -t ag-infer-client:latest .
+sudo -H DOCKER_BUILDKIT=1 docker build -f docker/Dockerfile -t niqbal996/triton-server:client .
 
-docker run -it --rm --runtime nvidia --net=host --name client-test ag-infer-client
+docker run -it --rm --runtime nvidia --net=host --name triton-client niqbal996/triton-server:client
 ```
 
