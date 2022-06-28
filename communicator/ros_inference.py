@@ -28,11 +28,11 @@ class RosInference(BaseInference):
 
         self.image = None
         self.br = CvBridge()
-        self.class_names = self.load_class_names()
 
         self._register_inference() # register inference based on type of client
         self.client_postprocess = client.get_postprocess() # get postprocess of client
         self.client_preprocess = client.get_preprocess()
+        self.class_names = self.client_postprocess.load_class_names()
 
     def _register_inference(self):
         """
@@ -80,7 +80,7 @@ class RosInference(BaseInference):
         else:
             self.output = service_pb2.ModelInferRequest().InferRequestedOutputTensor()
             self.output.name = output_name[0]
-            self.channel.request.outputs.extend(self.output)
+            self.channel.request.outputs.extend([self.output])
         # self.channel.output.name = output_name[0]
         # self.channel.request.outputs.extend([self.channel.output])
 
