@@ -1,9 +1,11 @@
 # Parameter for the ROS Client
 # Communication parameter
-grpc_channel: '10.249.3.13:8001'       # triton inference server
+#grpc_channel: '10.249.3.13:8001'       # triton inference server
+#grpc_channel: '10.248.2.1:8001'       # triton inference server
+grpc_channel: 'localhost:8001'       # triton inference server
 
 # Data parameter
 # Image topic from AI-test-field simulation
-sub_topic: '/camera/color/image_raw'  # subscriber
-pub_topic: '/camera/color/detection'  # publisher
+sub_topic: '/aver_01/camera_color/image_raw'  # subscriber
+pub_topic: '/aver_01/camera_color/detection'  # publisher
 gt_topic: '/camera/color/Detection2DArray'  # groundtruth topic for the raw_data from sub_topic
