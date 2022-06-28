@@ -6,7 +6,6 @@ from cv_bridge import CvBridge
 import time
 import cv2
 import numpy as np
-from waiting import wait
 
 from tritonclient.grpc import service_pb2, service_pb2_grpc
 import tritonclient.grpc.model_config_pb2 as mc
@@ -53,11 +52,11 @@ class EvaluateInference(BaseInference):
         self.prometheus_server = start_http_server(7658)
 
         # sending metrics via prometheus client
-        self.p_summary = Histogram('precision', 'Precision of the Model')
-        self.r_summary = Histogram('recall', 'Recall of the Model')
-        self.ap_summary = Histogram('ap', 'Average Precision of the Model')
-        self.f1_summary = Histogram('fone', 'F1 Metric of the Model')
-        self.ap_class_summary = Histogram('ap_class', 'Average Precision per Class of the Model')
+        self.p_summary = Summary('precision', 'Precision of the Model')
+        self.r_summary = Summary('recall', 'Recall of the Model')
+        self.ap_summary = Summary('ap', 'Average Precision of the Model')
+        self.f1_summary = Summary('fone', 'F1 Metric of the Model')
+        self.ap_class_summary = Summary('ap_class', 'Average Precision per Class of the Model')
 
     def _register_inference(self):
         """
@@ -115,19 +114,8 @@ class EvaluateInference(BaseInference):
         rospy.loginfo('Waiting until all the Rosbag messages are processed . . .')
         time.sleep(20)  # TODO wait until the inference is done, NO HARDCODING!
         statistics = self.calculate_metrics()
-        statistics = [np.concatenate(x, 0) for x in zip(*statistics)]
-        names = {0: 'Weeds', 1: 'Maize'}
-        p, r, ap, f1, ap_class = self.ap_per_class(*statistics, names=names)
 
         rospy.loginfo('Sending Metrics to Prometheus')
-
-        # sending information to metric objects
-        # the metrics are a list, and each value has to be sent separately
-        [self.p_summary.observe(_) for _ in p]
-        [self.r_summary.observe(_) for _ in r]
-        #[self.ap_summary.observe(_) for _ in ap]
-        [self.f1_summary.observe(_) for _ in f1]
-        [self.ap_class_summary.observe(_) for _ in ap_class]
 
         rospy.loginfo('Sent Metrics to Prometheus')
 
@@ -409,7 +397,9 @@ class EvaluateInference(BaseInference):
 
     def calculate_metrics(self):
         import torch
-        stats = []
+        names = {0: 'Weeds', 1: 'Maize'}
+        aggregated_stats = []
+
         for msg_number in range(len(self.all_groundtruths)):
             rospy.loginfo('Processing message number {} out of {} . . .'.format(msg_number+1, len(self.all_groundtruths)))
             if self.img_processed and self.gt_processed:    # Processing DONE!!!!
@@ -431,8 +421,24 @@ class EvaluateInference(BaseInference):
                         matches = matches[np.unique(matches[:, 0], return_index=True)[1]]
                     matches = torch.Tensor(matches)
                     correct[matches[:, 1].long()] = matches[:, 2:3] >= iouv
-                    stats.append((correct.cpu(),
+
+                    stats = [(correct.cpu(),
                                   self.all_predictions[msg_number]['prediction'][:, 4],
                                   self.all_predictions[msg_number]['prediction'][:, 5],
-                                  self.all_groundtruths[msg_number]['ground_truths'][:, 5]))
-        return stats
+                                  self.all_groundtruths[msg_number]['ground_truths'][:, 5])]
+
+                    # TODO publish summary of aggregated_stats to graphana
+                    aggregated_stats.append(stats)
+
+                    stats = [np.concatenate(x, 0) for x in zip(*stats)]
+                    p, r, ap, f1, ap_class = self.ap_per_class(*stats, names=names)
+
+                    # sending information to metric objects
+                    # the metrics are a list, and each value has to be sent separately
+                    [self.p_summary.observe(_) for _ in p]
+                    [self.r_summary.observe(_) for _ in r]
+                    #[self.ap_summary.observe(_) for _ in ap]
+                    [self.f1_summary.observe(_) for _ in f1]
+                    [self.ap_class_summary.observe(_) for _ in ap_class]
+
+        return aggregated_stats
