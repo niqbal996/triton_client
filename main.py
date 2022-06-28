@@ -135,13 +135,10 @@ if __name__ == '__main__':
     channel = grpc_channel.GRPCChannel(param, FLAGS)
 
     #define inference
-    # inference = RosInference(channel, client)
-    evaluation = EvaluateInference(channel, client)
-    evaluation.start_inference()
-    #
-    # #start inference
-    # inference.start_inference()
-
+    inference = RosInference(channel, client)
+    inference.start_inference()
+    # evaluation = EvaluateInference(channel, client)
+    # evaluation.start_inference()
     # # input_name, output_name, c, h, w, format, dtype = parse_model(
     # #     metadata_response, config_response.config)
     # #
