@@ -1,2 +1,3 @@
 from .yolov5_preprocess import Yolov5preprocess
 from .detectron_preprocess import FCOSpreprocess
+from .preprocess_3d import PCDetpreprocess
