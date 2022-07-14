@@ -1,7 +1,8 @@
 from .base_client import Client
-from .preprocess import PCDetpreprocess
-from .postprocess import FCOSpostprocess
-class FCOS_client(Client):
+from .preprocess import PointpillarPreprocess
+from .postprocess import PointPillarPostprocess
+
+class Pointpillars_client(Client):
     """
 
     """
@@ -15,7 +16,7 @@ class FCOS_client(Client):
         self._clients[clienttype] = client
 
     def get_preprocess(self):
-        return PCDetpreprocess()
+        return PointpillarPreprocess()
 
     def get_postprocess(self):
-        return FCOSpostprocess()
+        return PointPillarPostprocess()

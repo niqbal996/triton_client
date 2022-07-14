@@ -1,6 +1,8 @@
 import rospy
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import Image, PointCloud2
 from cv_bridge import CvBridge
+import ros_numpy
+
 import cv2
 import numpy as np
 
@@ -85,7 +87,8 @@ class RosInference(BaseInference):
         # self.channel.request.outputs.extend([self.channel.output])
 
     def start_inference(self):
-        rospy.Subscriber(self.channel.params['sub_topic'], Image, self._callback)
+        # rospy.Subscriber(self.channel.params['sub_topic'], Image, self._callback)
+        rospy.Subscriber(self.channel.params['sub_topic'], PointCloud2, self._pc_callback)
         rospy.spin()
 
     def _scale_boxes(self, box, normalized=False):
@@ -146,3 +149,13 @@ class RosInference(BaseInference):
             self.msg_frame = self.br.cv2_to_imgmsg(self.orig_image, encoding="rgb8")
             self.msg_frame.header.stamp = rospy.Time.now()
             self.detection.publish(self.msg_frame)
+
+    def _pc_callback(self, msg):
+        self.pc = ros_numpy.point_cloud2.pointcloud2_to_xyz_array(msg)
+        self.pc = self.client_preprocess.filter_pc(self.pc)
+        self.channel.request.ClearField("inputs")
+        self.channel.request.ClearField("raw_input_contents")  # Flush the previous image contents
+        # TODO these are dummy requests, should implement the model on the server side first.
+        self.channel.request.inputs.extend([self.channel.input])
+        self.channel.request.raw_input_contents.extend([self.pc.tobytes()])
+        self.channel.response = self.channel.do_inference() # perform the channel Inference
