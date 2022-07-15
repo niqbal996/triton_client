@@ -5,6 +5,7 @@ try:
     import ros_numpy
 except ImportError:
     print("[WARNING] ros_numpy was not imported")
+
 import cv2
 import numpy as np
 
@@ -32,7 +33,7 @@ class RosInference(BaseInference):
         self.topic_exists = False
         self.image = None
         self.br = CvBridge()
-
+        self.topic_exists = False
         self._register_inference() # register inference based on type of client
         self.client_postprocess = client.get_postprocess() # get postprocess of client
         self.client_preprocess = client.get_preprocess()
@@ -94,6 +95,8 @@ class RosInference(BaseInference):
         # rospy.Subscriber(self.channel.params['sub_topic'], PointCloud2, self._pc_callback)
         rospy.spin()
 
+    def _check_topic(self, msg):
+        rospy.logerr('Ros topic found. Proceeding with inference . . .')
     def _scale_boxes(self, box, normalized=False):
         '''
         box: Bounding box generated for the image size (e.g. 512 x 512) expected by the model at triton server
@@ -156,6 +159,7 @@ class RosInference(BaseInference):
             self.msg_frame = self.br.cv2_to_imgmsg(self.orig_image, encoding="rgb8")
             self.msg_frame.header.stamp = rospy.Time.now()
             self.detection.publish(self.msg_frame)
+
 
     def _pc_callback(self, msg):
         self.pc = ros_numpy.point_cloud2.pointcloud2_to_xyz_array(msg)
