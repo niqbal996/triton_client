@@ -1,8 +1,10 @@
 import rospy
 from sensor_msgs.msg import Image, PointCloud2
 from cv_bridge import CvBridge
-import ros_numpy
-
+try:
+    import ros_numpy
+except ImportError:
+    print("[WARNING] ros_numpy was not imported")
 import cv2
 import numpy as np
 

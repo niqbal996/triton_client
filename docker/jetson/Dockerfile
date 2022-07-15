@@ -68,15 +68,13 @@ RUN mkdir ~/catkin_ws && \
     rosdep install --from-paths ./src --ignore-packages-from-source --rosdistro ${ROS_DISTRO} --skip-keys python3-pykdl -y && \
     python3 ./src/catkin/bin/catkin_make_isolated --install --install-space ${ROS_ROOT} -DCMAKE_BUILD_TYPE=Release && \
     rm -rf /var/lib/apt/lists/*
-#USER $UNAME
-SHELL ["/bin/bash", "-c"] 
 RUN echo 'source /opt/ros/noetic/setup.bash' >> ~/.bashrc
 RUN mkdir -p /workspace/triton_client
 COPY . /workspace/triton_client/
 RUN mkdir -p /catkin_ws/src && cd /catkin_ws/src/
 RUN python3 -m pip install --upgrade pip
 RUN python3 -m pip install tritonclient[grpc] --ignore-installed pyyaml~=6.0 numpy==1.19.4
-RUN /workspace/triton_client/docker/install_cvbridge.sh
+RUN /workspace/triton_client/docker/jetson/install_cvbridge.sh
 RUN echo 'source /catkin_ws/devel/setup.bash' >> ~/.bashrc
 WORKDIR /workspace/triton_client/
 #CMD ["/bin/bash", "python3", "main.py", "-m", "weed_detector"]
