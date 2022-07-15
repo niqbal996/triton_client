@@ -25,7 +25,7 @@ class RosInference(BaseInference):
         '''
 
         super().__init__(channel, client)
-
+        self.topic_exists = False
         self.image = None
         self.br = CvBridge()
 
@@ -85,6 +85,7 @@ class RosInference(BaseInference):
         # self.channel.request.outputs.extend([self.channel.output])
 
     def start_inference(self):
+        rospy.loginfo('Listening to Image topic: {}'.format(self.channel.params['sub_topic']))
         rospy.Subscriber(self.channel.params['sub_topic'], Image, self._callback)
         rospy.spin()
 
@@ -108,6 +109,10 @@ class RosInference(BaseInference):
     def _callback(self, msg):
         # rospy.loginfo('Image received...')
         cv_image = self.br.imgmsg_to_cv2(msg, desired_encoding='rgb8')
+        if cv_image is not None and not self.topic_exists:
+            rospy.loginfo("Topic received. Proceeding with Inference . . .")
+            rospy.loginfo("Publishing detections under {}".format(self.channel.params['pub_topic']))
+            self.topic_exists = True
         self.orig_size = cv_image.shape[0:2]
         self.orig_image = cv_image.copy()
         cv_image = cv2.resize(cv_image, (self.channel.input.shape[1], self.channel.input.shape[2]))
