@@ -5,7 +5,7 @@ This Dockerfile builds a Triton client image with ROS noetic, CV bridge and Open
 ## Usage
 
 ```bash
-sudo -H DOCKER_BUILDKIT=1 docker build -f docker/Dockerfile -t niqbal996/triton-server:client .
+sudo -H DOCKER_BUILDKIT=1 docker build -f docker/jetson/Dockerfile --platform linux/arm64 -t niqbal996/triton-server:client .
 
 docker run -it --rm --runtime nvidia --net=host --name triton-client niqbal996/triton-server:client
 ```

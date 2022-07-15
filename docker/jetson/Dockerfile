@@ -1,5 +1,5 @@
 ARG BASE_IMAGE=nvcr.io/nvidia/l4t-ml:r32.5.0-py3
-FROM ${BASE_IMAGE} as onnxruntime
+FROM ${BASE_IMAGE} as tritonclient
 
 #ARG WHEEL_FILE
 ARG UNAME=docker

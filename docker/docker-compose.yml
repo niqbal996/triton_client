@@ -4,6 +4,9 @@ services:
   triton_server:
     container_name: triton_server
     image: niqbal996/triton-server:j4.6.1-s2.19-yolov5nCROP
+    build:
+      context: ./server/
+      dockerfile: Dockerfile
     network_mode: "host"
 #    runtime: nvidia      default runtime?
     restart: always
@@ -13,35 +16,33 @@ services:
       - "8000:8000"
       - "8001:8001"
       - "8002:8002"
-  realsense_node:
-    container_name: realsense_node
-    image: niqbal996/triton-server:client
-    network_mode: "host"
-    restart: always
-    depends_on:
-      - triton_server
-    environment:
-      ROS_MASTER_URI: http://localhost:11311
-      ROS_MASTER_IP: 10.248.2.1 #DEBUG
-    ports:
-      - "11311:11311"
+#  realsense_node:
+#    container_name: realsense_node
+#    image: niqbal996/triton-server:client
+#    network_mode: "host"
+#    restart: always
+#    depends_on:
+#      - triton_server
+#    environment:
+#      ROS_MASTER_URI: http://localhost:11311
+#      ROS_MASTER_IP: 10.248.2.1 #DEBUG
+#    ports:
+#      - "11311:11311"
   triton_client:
     container_name: triton_client
     image: niqbal996/triton-server:client
+    build:
+      context: ./jetson/
+      dockerfile: Dockerfile
     network_mode: "host"
     restart: always
-    depends_on:
-      - realsense_node
+#    depends_on:
+##      - realsense_node
+#      - triton_server
     environment:
       ROS_MASTER_URI: http://localhost:11311
       ROS_MASTER_IP: 10.248.2.1 # DEBUG
     ports:
       - "11311:11311"
-#volumes:
-#  cvat_db:
-#  cvat_data:
-#  cvat_keys:
-#  cvat_logs:
-#
 #networks:
 #  ros_triton:
