@@ -3,3 +3,7 @@ from .base_client import Client
 from .detectron_client import FCOS_client
 from .postprocess import *
 from .preprocess import *
+try:
+    from .detector_3d_client import Pointpillars_client
+except ImportError:
+    print("[WARNING] PointPillars client was not imported")
