@@ -80,4 +80,4 @@ RUN /workspace/triton_client/docker/install_cvbridge.sh
 RUN echo 'source /catkin_ws/devel/setup.bash' >> ~/.bashrc
 WORKDIR /workspace/triton_client/
 #CMD ["/bin/bash", "python3", "main.py", "-m", "weed_detector"]
-ENTRYPOINT /workspace/triton_client/docker/infer_client.sh
+ENTRYPOINT /workspace/triton_client/docker/jetson/infer_client.sh
