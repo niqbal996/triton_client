@@ -1,0 +1,37 @@
+name: "pointpillar"
+platform: "onnxruntime_onnx"
+max_batch_size : 0
+input [
+  {
+    name: "voxels"
+    data_type: TYPE_FP32
+    dims: [1000, 32, 10]
+  },
+  {
+    name: "voxel_idxs"
+    data_type: TYPE_INT32
+    dims: [1000, 4]
+  },
+  {
+    name: "voxel_num"
+    data_type: TYPE_INT32
+    dims: [1]
+  }
+]
+output [
+  {
+    name: "cls_preds"
+    data_type: TYPE_FP32
+    dims: [1, 248, 216, 18]
+  },
+  {
+    name: "box_preds"
+    data_type: TYPE_FP32
+    dims: [1, 248, 216, 42]
+  },
+  {
+    name: "dir_cls_preds"
+    data_type: TYPE_FP32
+    dims: [1, 248, 216, 12]
+  }
+]
