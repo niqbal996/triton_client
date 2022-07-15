@@ -5,33 +5,33 @@ input [
   {
     name: "voxels"
     data_type: TYPE_FP32
-    dims: [1000, 32, 10]
+    dims: [-1, 32, 4]
   },
   {
-    name: "voxel_idxs"
+    name: "coors"
     data_type: TYPE_INT32
-    dims: [1000, 4]
+    dims: [-1, 4]
   },
   {
-    name: "voxel_num"
+    name: "num_points"
     data_type: TYPE_INT32
     dims: [1]
   }
 ]
 output [
   {
-    name: "cls_preds"
+    name: "bbox_preds"
     data_type: TYPE_FP32
-    dims: [1, 248, 216, 18]
+    dims: [1, 42, 248, 216]
   },
   {
-    name: "box_preds"
+    name: "dir_scores"
     data_type: TYPE_FP32
-    dims: [1, 248, 216, 42]
+    dims: [1, 12, 248, 216]
   },
   {
-    name: "dir_cls_preds"
+    name: "scores"
     data_type: TYPE_FP32
-    dims: [1, 248, 216, 12]
+    dims: [1, 18, 248, 216]
   }
 ]
