@@ -1,0 +1,3 @@
+[submodule "utils/export_models/OpenPCDet"]
+	path = utils/export_models/OpenPCDet
+	url = git@github.com:open-mmlab/OpenPCDet.git

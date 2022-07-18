@@ -137,8 +137,8 @@ if __name__ == '__main__':
     #define inference
     inference = RosInference(channel, client)
     inference.start_inference()
-    # evaluation = EvaluateInference(channel, client)
-    # evaluation.start_inference()
+    evaluation = EvaluateInference(channel, client)
+    evaluation.start_inference()
     # # input_name, output_name, c, h, w, format, dtype = parse_model(
     # #     metadata_response, config_response.config)
     # #

@@ -1,0 +1,37 @@
+name: "pointpillar"
+platform: "onnxruntime_onnx"
+max_batch_size : 0
+input [
+  {
+    name: "voxels"
+    data_type: TYPE_FP32
+    dims: [-1, 32, 4]
+  },
+  {
+    name: "coors"
+    data_type: TYPE_INT32
+    dims: [-1, 4]
+  },
+  {
+    name: "num_points"
+    data_type: TYPE_INT32
+    dims: [1]
+  }
+]
+output [
+  {
+    name: "bbox_preds"
+    data_type: TYPE_FP32
+    dims: [1, 42, 248, 216]
+  },
+  {
+    name: "dir_scores"
+    data_type: TYPE_FP32
+    dims: [1, 12, 248, 216]
+  },
+  {
+    name: "scores"
+    data_type: TYPE_FP32
+    dims: [1, 18, 248, 216]
+  }
+]

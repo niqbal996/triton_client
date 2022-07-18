@@ -1,5 +1,5 @@
 ARG BASE_IMAGE=nvcr.io/nvidia/l4t-ml:r32.5.0-py3
-FROM ${BASE_IMAGE} as onnxruntime
+FROM ${BASE_IMAGE} as tritonclient
 
 #ARG WHEEL_FILE
 ARG UNAME=docker
@@ -68,14 +68,14 @@ RUN mkdir ~/catkin_ws && \
     rosdep install --from-paths ./src --ignore-packages-from-source --rosdistro ${ROS_DISTRO} --skip-keys python3-pykdl -y && \
     python3 ./src/catkin/bin/catkin_make_isolated --install --install-space ${ROS_ROOT} -DCMAKE_BUILD_TYPE=Release && \
     rm -rf /var/lib/apt/lists/*
-#USER $UNAME
-RUN echo 'source /opt/ros/${ROS_DISTRO}/setup.bash' >> ~/.bashrc
+RUN echo 'source /opt/ros/noetic/setup.bash' >> ~/.bashrc
 RUN mkdir -p /workspace/triton_client
 COPY . /workspace/triton_client/
 RUN mkdir -p /catkin_ws/src && cd /catkin_ws/src/
 RUN python3 -m pip install --upgrade pip
 RUN python3 -m pip install tritonclient[grpc] --ignore-installed pyyaml~=6.0 numpy==1.19.4
-RUN /workspace/triton_client/docker/install_cvbridge.sh
+RUN /workspace/triton_client/docker/jetson/install_cvbridge.sh
 RUN echo 'source /catkin_ws/devel/setup.bash' >> ~/.bashrc
 WORKDIR /workspace/triton_client/
-#CMD ["python3", "-u", "main.py", "weed_detector"]
+#CMD ["/bin/bash", "python3", "main.py", "-m", "weed_detector"]
+ENTRYPOINT /workspace/triton_client/docker/jetson/infer_client.sh

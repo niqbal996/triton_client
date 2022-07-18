@@ -1,7 +1,10 @@
 import rospy
 from sensor_msgs.msg import Image, PointCloud2
 from cv_bridge import CvBridge
-import ros_numpy
+try:
+    import ros_numpy
+except ImportError:
+    print("[WARNING] ros_numpy was not imported")
 
 import cv2
 import numpy as np
@@ -27,10 +30,10 @@ class RosInference(BaseInference):
         '''
 
         super().__init__(channel, client)
-
+        self.topic_exists = False
         self.image = None
         self.br = CvBridge()
-
+        self.topic_exists = False
         self._register_inference() # register inference based on type of client
         self.client_postprocess = client.get_postprocess() # get postprocess of client
         self.client_preprocess = client.get_preprocess()
@@ -87,10 +90,13 @@ class RosInference(BaseInference):
         # self.channel.request.outputs.extend([self.channel.output])
 
     def start_inference(self):
-        # rospy.Subscriber(self.channel.params['sub_topic'], Image, self._callback)
-        rospy.Subscriber(self.channel.params['sub_topic'], PointCloud2, self._pc_callback)
+        rospy.loginfo('Listening to Image topic: {}'.format(self.channel.params['sub_topic']))
+        rospy.Subscriber(self.channel.params['sub_topic'], Image, self._callback)
+        # rospy.Subscriber(self.channel.params['sub_topic'], PointCloud2, self._pc_callback)
         rospy.spin()
 
+    def _check_topic(self, msg):
+        rospy.logerr('Ros topic found. Proceeding with inference . . .')
     def _scale_boxes(self, box, normalized=False):
         '''
         box: Bounding box generated for the image size (e.g. 512 x 512) expected by the model at triton server
@@ -111,6 +117,10 @@ class RosInference(BaseInference):
     def _callback(self, msg):
         # rospy.loginfo('Image received...')
         cv_image = self.br.imgmsg_to_cv2(msg, desired_encoding='rgb8')
+        if cv_image is not None and not self.topic_exists:
+            rospy.loginfo("Topic received. Proceeding with Inference . . .")
+            rospy.loginfo("Publishing detections under {}".format(self.channel.params['pub_topic']))
+            self.topic_exists = True
         self.orig_size = cv_image.shape[0:2]
         self.orig_image = cv_image.copy()
         cv_image = cv2.resize(cv_image, (self.channel.input.shape[1], self.channel.input.shape[2]))
@@ -149,6 +159,7 @@ class RosInference(BaseInference):
             self.msg_frame = self.br.cv2_to_imgmsg(self.orig_image, encoding="rgb8")
             self.msg_frame.header.stamp = rospy.Time.now()
             self.detection.publish(self.msg_frame)
+
 
     def _pc_callback(self, msg):
         self.pc = ros_numpy.point_cloud2.pointcloud2_to_xyz_array(msg)
