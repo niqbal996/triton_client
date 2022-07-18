@@ -41,7 +41,7 @@ import yaml
 # from utils.postprocess import extract_boxes_triton, load_class_names
 # from utils.ros_input import RealSenseNode
 
-from communicator import RosInference, EvaluateInference
+from communicator import RosInference3D
 from communicator.channel import grpc_channel
 from clients import Pointpillars_client
 
@@ -127,5 +127,5 @@ if __name__ == '__main__':
     channel = grpc_channel.GRPCChannel(param, FLAGS)
 
     #define inference
-    inference = RosInference(channel, client)
+    inference = RosInference3D(channel, client)
     inference.start_inference()

@@ -31,9 +31,8 @@ class Client(ABC):
 
     def parse_model(self, model_metadata, model_config):
         """
-            Check the configuration of a model to make sure it meets the
-            requirements for an image yolov4 network (as expected by
-            this client)
+            Parse the model based on the model configuration file on the triton server
+            This works for most image based models. For 3D detectors, the method is overridden.
         """
 
         if len(model_metadata.inputs) != 1:
