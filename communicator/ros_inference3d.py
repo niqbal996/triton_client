@@ -158,7 +158,7 @@ class RosInference3D(BaseInference):
             self.detection.publish(self.msg_frame)
 
     def _pc_callback(self, msg):
-        import json
+        import struct
         self.pc = ros_numpy.point_cloud2.pointcloud2_to_xyz_array(msg)
         self.pc = self.client_preprocess.filter_pc(self.pc)
         # self.channel.request.ClearField("inputs")
@@ -168,6 +168,11 @@ class RosInference3D(BaseInference):
         # self.channel.request.inputs.extend([self.input0,
         #                                     self.input1,
         #                                     self.input2])
+        # for key in pc
         # pc = json.dumps(self.pc)
-        self.channel.request.raw_input_contents.extend(self.pc.tobytes())
+        self.channel.request.raw_input_contents.extend([
+                                                        self.pc['voxels'].tobytes(),
+                                                        np.array(self.pc['voxel_coords'], dtype=np.int32).tobytes(),
+                                                        np.array([self.pc['voxel_num_points'].size], dtype=np.int32).tobytes()
+                                                        ])
         self.channel.response = self.channel.do_inference() # perform the channel Inference
