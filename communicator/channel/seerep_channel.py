@@ -4,40 +4,55 @@ import grpc
 from tritonclient.grpc import service_pb2, service_pb2_grpc
 import tritonclient.grpc.model_config_pb2 as mc
 
+import os
+import sys
+import cv2
 
-class SEEREPChannel(BaseChannel):
+import flatbuffers
+import grpc
+from query_pb2 import Query
+import Boundingbox, Empty, Header, Image, Point, ProjectInfos, Query, TimeInterval, Timestamp
+
+import imageService_grpc_fb as imageService
+import metaOperations_grpc_fb as metaOperations
+
+
+class SEEREPChannel():
     """
     A SEEREPChannel is establishes a connection between the triton client and SEEREP.
     """
 
     def __init__(self,params,FLAGS):
-        super().__init__(params,FLAGS)
+        #super().__init__(params,FLAGS)
         self._meta_data = {}
         self._grpc_stub = None
         self._grpc_stubmeta = None
         self._builder = None
         self._projectid = None
 
-        self.register_channel() # register and initialise the stub
-        self._grpc_metadata() #
+        # register and initialise the stub
+        self.register_channel(socket='seerep.robot.10.249.3.13.nip.io:32141', projname='hunaidproject')
+        #self._grpc_metadata() #
 
-    def register_channel(self):
+    def register_channel(self, socket, projname):
         """
          register grpc triton channel
+         socket: String, Port and IP address of seerep server
+         seerep.robot.10.249.3.13.nip.io:32141
         """
         # server with certs
         __location__ = os.path.realpath(
             os.path.join(os.getcwd(), os.path.dirname(__file__)))
         with open(os.path.join(__location__, 'tls.pem'), 'rb') as f:
             root_cert = f.read()
-        server = "seerep.robot.10.249.3.13.nip.io:32141"
+        server = socket
         creds = grpc.ssl_channel_credentials(root_cert)
         channel = grpc.secure_channel(server, creds)
 
         self._grpc_stub  = imageService.ImageServiceStub(channel)
-        self._grpc_stubmeta = stubMeta = metaOperations.MetaOperationsStub(channel)  
+        self._grpc_stubmeta = metaOperations.MetaOperationsStub(channel)  
         self._builder = self.init_query()
-        self._projectid = self.retrieveproject()
+        self._projectid = self.retrieve_project(projname)
 
     def fetch_channel(self):
         """
@@ -80,7 +95,7 @@ class SEEREPChannel(BaseChannel):
         self.request.model_version = self.FLAGS.model_version
         self.output = service_pb2.ModelInferRequest().InferRequestedOutputTensor()
 
-    def do_inference(self):
+    def perform_inference(self):
         """
         inference based on grpc_stud
         @return: inference of grpc
@@ -91,26 +106,38 @@ class SEEREPChannel(BaseChannel):
         '''
             WHAT THE FUCK
         '''
-    for i in range(response.ProjectsLength()):
-        print(response.Projects(i).Name().decode("utf-8") + " " + response.Projects(i).Uuid().decode("utf-8"))
-        if response.Projects(i).Name().decode("utf-8") == projname:
-            projectuuid = response.Projects(i).Uuid().decode("utf-8")
+        Empty.Start(self._builder)
+        emptyMsg = Empty.End(self._builder)
+        self._builder.Finish(emptyMsg)
+        buf = self._builder.Output()
+
+        Query.Start(self._builder)
+
+        responseBuf = self._grpc_stubmeta.GetProjects(bytes(buf))
+        response = ProjectInfos.ProjectInfos.GetRootAs(responseBuf)
+
+        for i in range(response.ProjectsLength()):
+            print(response.Projects(i).Name().decode("utf-8") + " " + response.Projects(i).Uuid().decode("utf-8"))
+            if response.Projects(i).Name().decode("utf-8") == projname:
+                projectuuid = response.Projects(i).Uuid().decode("utf-8")
+                print("[FOUND PROJ] ", projectuuid)
+
+        ''' What does this do and how to we use it?
+        projectuuidString = self._builder.CreateString(projectuuid)
+        Query.StartProjectuuidVector(self._builder, 1)
+        builder.PrependUOffsetTRelative(projectuuidString)
+        projectuuidMsg = self._builder.EndVector()
+        '''
 
         return projectuuid
 
 
     def init_query(self):
         builder = flatbuffers.Builder(1024)
-        Empty.Start(builder)
-        emptyMsg = Empty.End(builder)
-        builder.Finish(emptyMsg)
-        buf = builder.Output()
-
-        Query.Start(builder)
-
+        
         return builder
 
-    def add_boundingbox(start_coord, end_coord):
+    def add_boundingbox(self, start_coord, end_coord):
         '''
         Add a bounding box to the query builder
         Args:
@@ -131,17 +158,17 @@ class SEEREPChannel(BaseChannel):
         pointMax = Point.End(self._builder)
 
         frameId = builder.CreateString("map")
-        Header.Start(builder)
-        Header.AddFrameId(builder, frameId)
-        header = Header.End(builder)
+        Header.Start(self._builder)
+        Header.AddFrameId(self._builder, frameId)
+        header = Header.End(self._builder)
 
-        Boundingbox.Start(builder)
-        Boundingbox.AddPointMin(builder, pointMin)
-        Boundingbox.AddPointMax(builder, pointMax)
-        Boundingbox.AddHeader(builder, header)
-        boundingbox = Boundingbox.End(builder)
+        Boundingbox.Start(self._builder)
+        Boundingbox.AddPointMin(self._builder, pointMin)
+        Boundingbox.AddPointMax(self._builder, pointMax)
+        Boundingbox.AddHeader(self._builder, header)
+        boundingbox = Boundingbox.End(self._builder)
 
-        Query.AddBoundingbox(builder, boundingbox)
+        Query.AddBoundingbox(self._builder, boundingbox)
 
     def add_timestamp(self, starttime, endtime):
         '''
@@ -166,12 +193,7 @@ class SEEREPChannel(BaseChannel):
         TimeInterval.AddTimeMax(self._builder, timeMax)
         timeInterval = TimeInterval.End(self._builder)
 
-        projectuuidString = self._builder.CreateString(self._projectuuid)
-        Query.StartProjectuuidVector(self._builder, 1)
-        builder.PrependUOffsetTRelative(projectuuidString)
-        projectuuidMsg = self._builder.EndVector()
-
-        Query.AddTimeinterval(builder, timeInterval)
+        Query.AddTimeinterval(self._builder, timeInterval)
 
     def add_label(self, label):
         label = builder.CreateString("1")
@@ -182,10 +204,10 @@ class SEEREPChannel(BaseChannel):
         Query.AddLabel(builder, labelMsg)
 
     def run_query(self):
-        queryMsg = Query.End(builder)
+        queryMsg = Query.End(self._builder)
 
         builder.Finish(queryMsg)
-        buf = builder.Output()
+        buf = self._builder.Output()
 
         for responseBuf in stub.GetImage(bytes(buf)):
             response = Image.Image.GetRootAs(responseBuf)
@@ -201,16 +223,5 @@ class SEEREPChannel(BaseChannel):
                 + " "
                 + str(response.LabelsBb(0).BoundingBox().PointMax().Y())
             )
-
-
-
-
-
-
-
-
-
-
-
 
 
