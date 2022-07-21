@@ -1,4 +1,4 @@
-from communicator.channel.base_channel import BaseChannel
+from base_channel import BaseChannel
 
 import grpc
 from tritonclient.grpc import service_pb2, service_pb2_grpc
@@ -10,7 +10,6 @@ import cv2
 
 import flatbuffers
 import grpc
-from query_pb2 import Query
 import Boundingbox, Empty, Header, Image, Point, ProjectInfos, Query, TimeInterval, Timestamp
 
 import imageService_grpc_fb as imageService
@@ -22,7 +21,8 @@ class SEEREPChannel():
     A SEEREPChannel is establishes a connection between the triton client and SEEREP.
     """
 
-    def __init__(self,params,FLAGS):
+    #def __init__(self,params,FLAGS):
+    def __init__(self):
         #super().__init__(params,FLAGS)
         self._meta_data = {}
         self._grpc_stub = None
@@ -51,7 +51,7 @@ class SEEREPChannel():
 
         self._grpc_stub  = imageService.ImageServiceStub(channel)
         self._grpc_stubmeta = metaOperations.MetaOperationsStub(channel)  
-        self._builder = self.init_query()
+        self._builder = self.init_builder()
         self._projectid = self.retrieve_project(projname)
 
     def fetch_channel(self):
@@ -111,7 +111,7 @@ class SEEREPChannel():
         self._builder.Finish(emptyMsg)
         buf = self._builder.Output()
 
-        Query.Start(self._builder)
+        #Query.Start(self._builder) can't start a query just yet
 
         responseBuf = self._grpc_stubmeta.GetProjects(bytes(buf))
         response = ProjectInfos.ProjectInfos.GetRootAs(responseBuf)
@@ -131,13 +131,12 @@ class SEEREPChannel():
 
         return projectuuid
 
-
-    def init_query(self):
+    def init_builder(self):
         builder = flatbuffers.Builder(1024)
         
         return builder
 
-    def add_boundingbox(self, start_coord, end_coord):
+    def gen_boundingbox(self, start_coord, end_coord):
         '''
         Add a bounding box to the query builder
         Args:
@@ -168,9 +167,10 @@ class SEEREPChannel():
         Boundingbox.AddHeader(self._builder, header)
         boundingbox = Boundingbox.End(self._builder)
 
-        Query.AddBoundingbox(self._builder, boundingbox)
+        #Query.AddBoundingbox(self._builder, boundingbox)
+        return boundingbox
 
-    def add_timestamp(self, starttime, endtime):
+    def gen_timestamp(self, starttime, endtime):
         '''
         Add a time range to the query builder
         Args:
@@ -193,23 +193,38 @@ class SEEREPChannel():
         TimeInterval.AddTimeMax(self._builder, timeMax)
         timeInterval = TimeInterval.End(self._builder)
 
-        Query.AddTimeinterval(self._builder, timeInterval)
+        #Query.AddTimeinterval(self._builder, timeInterval)
+        return timeInterval
 
-    def add_label(self, label):
+    def gen_label(self, label):
         label = builder.CreateString("1")
         Query.StartLabelVector(builder, 1)
         builder.PrependUOffsetTRelative(label)
         labelMsg = builder.EndVector()
 
-        Query.AddLabel(builder, labelMsg)
+        #Query.AddLabel(builder, labelMsg)
+        return labelMsg
 
-    def run_query(self):
+    def run_query(self, **kwargs):
+        projectuuidString = self._builder.CreateString(self._projectid)
+        Query.StartProjectuuidVector(self._builder, 1)
+        self._builder.PrependUOffsetTRelative(projectuuidString)
+        projectuuidMsg = self._builder.EndVector()
+
+        Query.Start(self._builder)
+
+        Query.AddProjectuuid(self._builder, projectuuidMsg)
+
+        for key, value in kwargs.items():
+            if key == "bb": Query.AddBoundingbox(self._builder, value)
+            if key == "ti": Query.AddTimeinterval(self._builder, value)
+
         queryMsg = Query.End(self._builder)
 
-        builder.Finish(queryMsg)
+        self._builder.Finish(queryMsg)
         buf = self._builder.Output()
 
-        for responseBuf in stub.GetImage(bytes(buf)):
+        for responseBuf in self._grpc_stub.GetImage(bytes(buf)):
             response = Image.Image.GetRootAs(responseBuf)
             print("uuidmsg: " + response.Header().UuidMsgs().decode("utf-8"))
             print("first label: " + response.LabelsBb(0).LabelWithInstance().Label().decode("utf-8"))
@@ -224,4 +239,11 @@ class SEEREPChannel():
                 + str(response.LabelsBb(0).BoundingBox().PointMax().Y())
             )
 
+def main():
+    schan = SEEREPChannel()
+    ts = schan.gen_timestamp(1610549273, 1938549273)
+    schan.run_query(ti=ts)
+
+if __name__ == "__main__":
+    main()
 
