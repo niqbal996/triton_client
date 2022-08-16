@@ -1,5 +1,5 @@
 ARG BASE_IMAGE=nvcr.io/nvidia/tensorrt:21.10-py3
-FROM ${BASE_IMAGE} as onnxruntime
+FROM ${BASE_IMAGE} as tritonclient
 
 #ARG WHEEL_FILE
 ARG UNAME=docker
@@ -82,8 +82,8 @@ RUN apt-get update && \
 
 # install python libraries
 RUN python3 -m pip install --upgrade pip
-RUN python3 -m pip install tritonclient[grpc] --ignore-installed pyyaml~=6.0 numpy==1.19.4
-RUN python3 -m pip install torch==1.8.1 torchvision==0.9.1
+RUN --mount=type=cache,target=/root/.cache/pip python3 -m pip install tritonclient[grpc] --ignore-installed pyyaml~=6.0 numpy==1.19.4
+RUN --mount=type=cache,target=/root/.cache/pip python3 -m pip install torch==1.8.1 torchvision==0.9.1
 
 # install PCDet
 RUN apt-get install unzip
