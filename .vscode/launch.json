@@ -1,0 +1,26 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: 2D client",
+            "type": "python",
+            "request": "launch",
+            "program": "/workspace/triton_client_yolo/main.py",
+            "args": ["-m", "YOLOv5nCROP"],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Python: 3D client",
+            "type": "python",
+            "request": "launch",
+            "program": "/workspace/triton_client_yolo/main3d.py",
+            "args": ["-m", "pointpillar"],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        }
+    ]
+}
