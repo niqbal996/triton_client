@@ -1,7 +1,13 @@
+import sys
 import rospy
 from sensor_msgs.msg import Image, PointCloud2
 from cv_bridge import CvBridge
-import ros_numpy
+try:
+    import ros_numpy
+except Exception as E:
+    print('[ERROR] ros_numpy is not installed. Exiting . . . ')
+    print()
+    sys.exit(-1)
 
 import cv2
 import numpy as np
