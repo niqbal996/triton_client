@@ -60,7 +60,7 @@ RUN apt-get update && \
     source /opt/ros/noetic/setup.bash && \
     echo "source /opt/ros/noetic/setup.bash" >> ~/.bashrc && \
     apt install --no-install-recommends -y python3-rosdep python3-rosinstall python3-rosinstall-generator python3-wstool build-essential && \
-    apt install -y ros-noetic-image-transport ros-noetic-cv-bridge ros-noetic-vision-msgs && \
+    apt install -y ros-noetic-image-transport ros-noetic-cv-bridge ros-noetic-vision-msgs ros-noetic-ros-numpy && \
     mkdir -p /catkin_ws/src && \
     cd /catkin_ws && \
     catkin_make -DPYTHON_EXECUTABLE=/usr/bin/python3 && \
@@ -77,12 +77,18 @@ RUN --mount=type=cache,target=/root/.cache/pip python3 -m pip install tritonclie
 RUN --mount=type=cache,target=/root/.cache/pip python3 -m pip install torch==1.8.1 torchvision==0.9.1 spconv-cu114
 
 # install PCDet
+# RUN apt-get install unzip && \
+#    wget --no-check-certificate https://github.com/open-mmlab/OpenPCDet/archive/refs/heads/master.zip &&  \
+#    unzip master.zip -d /workspace/ && \
+#    cd /workspace/OpenPCDet-master && python3 setup.py develop && \
+#    apt-get remove unzip && rm -rf /workspace/OpenPCDet-master
+
 RUN apt-get install unzip && \
-   wget --no-check-certificate https://github.com/open-mmlab/OpenPCDet/archive/refs/heads/master.zip &&  \
-   mkdir -p /workspace/pcdet && \
+   wget --no-check-certificate https://github.com/niqbal996/pcdet-dev-container/archive/refs/heads/main.zip &&  \
    unzip master.zip -d /workspace/ && \
-   cd /workspace/OpenPCDet-master && python3 setup.py develop && \
-   apt-get remove unzip && rm -rf /workspace/OpenPCDet-master
+   cd /workspace/pcdet-dev-container-master/thirdparty/OpenPCDet && python3 setup.py develop && \
+   apt-get remove unzip 
+
 
 WORKDIR /workspace/
 #RUN cd utils/export_models/OpenPCDet && python setup.py develop

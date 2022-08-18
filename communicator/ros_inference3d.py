@@ -5,9 +5,7 @@ from cv_bridge import CvBridge
 try:
     import ros_numpy
 except Exception as E:
-    print('[ERROR] ros_numpy is not installed. Exiting . . . ')
-    print()
-    sys.exit(-1)
+    print('[WARNING] {}'.format(E))
 
 import cv2
 import numpy as np
@@ -60,17 +58,9 @@ class RosInference3D(BaseInference):
         """
         # collect meta data of model and configuration
         meta_data = self.channel.get_metadata()
-        x = self.channel.input.datatype
-        # parse the model requirements from client
         self.channel.input, self.channel.output, self.input_types = self.client.parse_model(
             meta_data["metadata_response"], meta_data["config_response"].config)
-        # self.input_size = [h, w]
-        # if format == mc.ModelInput.FORMAT_NHWC:
-        #     self.channel.input.shape.extend([h, w, c])
-        # else:
-        #     self.channel.input.shape.extend([c, h, w])
-
-
+        
         self.output0 = service_pb2.ModelInferRequest().InferRequestedOutputTensor() # boxes
         self.output0.name = self.channel.output[0]
         self.output1 = service_pb2.ModelInferRequest().InferRequestedOutputTensor() # class_IDs
@@ -82,25 +72,22 @@ class RosInference3D(BaseInference):
                                              self.output1,
                                              self.output2])
 
-        self.input0 = service_pb2.ModelInferRequest().InferInputTensor() # boxes
+        self.input0 = service_pb2.ModelInferRequest().InferInputTensor() # voxels
         self.input0.name = self.channel.input[0]
         self.input0.datatype = self.input_types[0]
-        self.input1 = service_pb2.ModelInferRequest().InferInputTensor() # class_IDs
+        tmp = 10000
+        self.input0.shape.extend([tmp, 32, 4])
+        self.input1 = service_pb2.ModelInferRequest().InferInputTensor() # coors
         self.input1.name = self.channel.input[1]
         self.input1.datatype = self.input_types[1]
-        self.input2 = service_pb2.ModelInferRequest().InferInputTensor() # scores
+        self.input1.shape.extend([tmp, 4])
+        self.input2 = service_pb2.ModelInferRequest().InferInputTensor() # num_points
         self.input2.name = self.channel.input[2]
         self.input2.datatype = self.input_types[2]
-
-        self.channel.request.inputs.extend([self.input0,
-                                            self.input1,
-                                            self.input2])
-
-        # self.channel.output.name = output_name[0]
-        # self.channel.request.outputs.extend([self.channel.output])
+        self.input2.shape.extend([tmp])
+        self.channel.request.inputs.extend([self.input0, self.input1, self.input2])
 
     def start_inference(self):
-        # rospy.Subscriber(self.channel.params['sub_topic'], Image, self._callback)
         rospy.Subscriber(self.channel.params['sub_topic'], PointCloud2, self._pc_callback)
         rospy.spin()
 
@@ -121,64 +108,30 @@ class RosInference3D(BaseInference):
 
         return [xtl, ytl, xbr, ybr]
 
-    def _callback(self, msg):
-        # rospy.loginfo('Image received...')
-        cv_image = self.br.imgmsg_to_cv2(msg, desired_encoding='rgb8')
-        self.orig_size = cv_image.shape[0:2]
-        self.orig_image = cv_image.copy()
-        cv_image = cv2.resize(cv_image, (self.channel.input.shape[1], self.channel.input.shape[2]))
-        self.image = self.client_preprocess.image_adjust(cv_image)
-        if self.image is not None:
-            self.channel.request.ClearField("inputs")
-            self.channel.request.ClearField("raw_input_contents")  # Flush the previous image contents
-            self.channel.request.inputs.extend([self.channel.input])
-            self.channel.request.raw_input_contents.extend([self.image.tobytes()])
-            self.channel.response = self.channel.do_inference() # perform the channel Inference
-            self.prediction = self.client_postprocess.extract_boxes(self.channel.response)
-
-            for object in self.prediction[0]:  # predictions array has the order [x1,y1, x2,y2, confidence,
-                                                                                # confidence, class ID]
-                box = np.array(object[0:4], dtype=np.float32)
-                box = self._scale_boxes(box, normalized=False)
-                if int(object[5]) == 0:
-                    color = (0, 255, 0)
-                else:
-                    color = (255, 0, 0)
-                cv2.rectangle(self.orig_image,
-                              pt1=(int(box[0]), int(box[1])),
-                              pt2=(int(box[2]), int(box[3])),
-                              color=color,
-                              thickness=3)
-                # cv2.putText(self.orig_image,
-                #             '{:.2f} {}'.format(object[-2], self.class_names[int(object[-1])]),
-                #             org=(int(box[0]), int(box[1])),
-                #             fontFace=cv2.FONT_HERSHEY_SIMPLEX,
-                #             fontScale=0.5,
-                #             thickness=2,
-                #             color=(0, 255, 0))
-            # cv2.imshow('Prediction', cv2.cvtColor(self.orig_image, cv2.COLOR_RGB2BGR))
-            # cv2.imshow('Prediction', cv2.cvtColor(self.orig_image, cv2.COLOR_RGB2BGR))
-            # cv2.waitKey()
-            self.msg_frame = self.br.cv2_to_imgmsg(self.orig_image, encoding="rgb8")
-            self.msg_frame.header.stamp = rospy.Time.now()
-            self.detection.publish(self.msg_frame)
-
     def _pc_callback(self, msg):
-        import struct
         self.pc = ros_numpy.point_cloud2.pointcloud2_to_xyz_array(msg)
         self.pc = self.client_preprocess.filter_pc(self.pc)
+        # the number of voxels changes every sample
+        num_voxels = self.pc['voxels'].shape[0]
+        # num_voxels = 10000
+        self.input0.ClearField("shape")
+        self.input1.ClearField("shape")
+        self.input2.ClearField("shape")
+        self.input0.shape.extend([num_voxels, 32, 4])
+        self.input1.shape.extend([num_voxels, 4])
+        self.input2.shape.extend([num_voxels])
         # self.channel.request.ClearField("inputs")
-        # self.channel.request.ClearField("raw_input_contents")  # Flush the previous image contents
-        # TODO these are dummy requests, should implement the model on the server side first.
-        # self.channel.request.inputs.extend(self.channel.input)
-        # self.channel.request.inputs.extend([self.input0,
-        #                                     self.input1,
-        #                                     self.input2])
-        # for key in pc
-        # pc = json.dumps(self.pc)
-        self.channel.request.raw_input_contents.extend([
-                                                        self.pc['voxels'].tobytes(),
-                                                        np.array(self.pc['voxel_coords'], dtype=np.int32).tobytes(),
-                                                        np.array([self.pc['voxel_num_points'].size], dtype=np.int32).tobytes()
-                                                        ])
+        self.channel.request.ClearField("raw_input_contents")  # Flush the previous image contents
+        # voxels = self.pc['voxels']
+        # coors = self.pc['voxel_coords']
+        # num_points = np.array(self.pc['voxel_num_points'], dtype=np.int32)
+        
+        # DUMMY Input
+        from numpy import random
+        voxels = random.rand(num_voxels, 32, 4)
+        coors = np.random.randint(1,100, size=(num_voxels,4), dtype=np.int32)
+        num_points = np.random.randint(1,1000, size=(num_voxels,), dtype=np.int32)
+        self.channel.request.raw_input_contents.extend([voxels.tobytes(), coors.tobytes(), num_points.tobytes()])
         self.channel.response = self.channel.do_inference() # perform the channel Inference
+        self.output = self.client_postprocess.extract_boxes(self.channel.response)
+        print('hold')

@@ -6,6 +6,7 @@ grpc_channel: 'localhost:8001'       # triton inference server
 
 # Data parameter
 # Image topic from AI-test-field simulation
-sub_topic: '/aver_01/camera_color/image_raw'  # subscriber
+# sub_topic: '/ai_test_field/sensors/os_cloud_node/points'  # subscriber
+sub_topic: '/camera/color/image_raw'
 pub_topic: '/aver_01/camera_color/detection'  # publisher
 gt_topic: '/camera/color/Detection2DArray'  # groundtruth topic for the raw_data from sub_topic

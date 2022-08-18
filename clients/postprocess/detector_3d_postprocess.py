@@ -31,7 +31,8 @@ class PointPillarPostprocess(Postprocess):
             """
         boxes = self.deserialize_bytes_float(prediction.raw_output_contents[0])
         boxes = np.reshape(boxes, prediction.outputs[0].shape)
-        class_ids = self.deserialize_bytes_int(prediction.raw_output_contents[1])
+        class_ids = self.deserialize_bytes_float(prediction.raw_output_contents[1])
+        class_ids = np.reshape(class_ids, prediction.outputs[1].shape)
         scores = self.deserialize_bytes_float(prediction.raw_output_contents[2])
         scores = np.reshape(scores, prediction.outputs[2].shape)
 

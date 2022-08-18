@@ -1,8 +1,11 @@
 from .base_preprocess import Preprocess
-from pcdet.datasets import processor
 import yaml
 from easydict import EasyDict
 import numpy as np
+try:
+    from pcdet.datasets import processor
+except Exception as e:
+    print('[ERROR] {}'.format(e))
 
 class PointpillarPreprocess(Preprocess):
 
