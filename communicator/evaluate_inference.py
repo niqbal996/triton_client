@@ -12,8 +12,10 @@ import tritonclient.grpc.model_config_pb2 as mc
 from .channel import grpc_channel
 from .base_inference import BaseInference
 # from utils import image_util
-
-from prometheus_client import start_http_server, Summary, Histogram
+try:
+    from prometheus_client import start_http_server, Summary
+except ImportError:
+    print('[WARNING] Prometheus client was not imported.')
 
 class EvaluateInference(BaseInference):
 
