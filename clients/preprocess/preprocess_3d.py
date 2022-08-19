@@ -29,12 +29,12 @@ class PointpillarPreprocess(Preprocess):
 
     def filter_pc(self, pointcloud_array):
         '''
-        pointcloud_array: input numpy array of shape [N,3] or [N,4] with/without intensity
+        pointcloud_array: input numpy array of shape [N,3] or [N,4] with/without reflectivity
         return: Dictionary with following keys:
-        data_dict['points'] = (N, 3)        total number of points in the scan
+        data_dict['points'] = (N, 4)        total number of points in the scan (x, y, z, r)
         data_dict['voxels'] = (Number of filled voxels, MAX_POINTS_PER_VOXEL, 3)
         data_dict['voxel_coords'] = (Number of filled voxels, 3)
-        data_dict['voxel_num_points'] = N* range filtered points
+        data_dict['voxel_num_points'] = (Number of filled voxels,)
         '''
         data_dict = {
             'points': pointcloud_array,
