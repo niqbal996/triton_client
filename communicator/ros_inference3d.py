@@ -1,6 +1,7 @@
 import sys
 import rospy
-from sensor_msgs.msg import Image, PointCloud2
+from sensor_msgs.msg import PointCloud2
+from sensor_msgs import point_cloud2
 from cv_bridge import CvBridge
 try:
     import ros_numpy
@@ -50,7 +51,7 @@ class RosInference3D(BaseInference):
         else:
             pass
 
-        self.detection = rospy.Publisher(self.channel.params['pub_topic'], Image, queue_size=10)
+        # self.detection = rospy.Publisher(self.channel.params['pub_topic'], Image, queue_size=10)
 
     def _set_grpc_channel_members(self):
         """
@@ -109,11 +110,12 @@ class RosInference3D(BaseInference):
         return [xtl, ytl, xbr, ybr]
 
     def _pc_callback(self, msg):
-        self.pc = ros_numpy.point_cloud2.pointcloud2_to_xyz_array(msg)
+        # self.pc = ros_numpy.point_cloud2.pointcloud2_to_xyz_array(msg)
+        # TODO what is the 4th attribute of the point clouds from KITTI and what is their data range
+        self.pc = np.array(list(point_cloud2.read_points(msg, field_names = ("x", "y", "z", "reflectivity"), skip_nans=True)))
         self.pc = self.client_preprocess.filter_pc(self.pc)
         # the number of voxels changes every sample
         num_voxels = self.pc['voxels'].shape[0]
-        # num_voxels = 10000
         self.input0.ClearField("shape")
         self.input1.ClearField("shape")
         self.input2.ClearField("shape")
@@ -122,15 +124,17 @@ class RosInference3D(BaseInference):
         self.input2.shape.extend([num_voxels])
         # self.channel.request.ClearField("inputs")
         self.channel.request.ClearField("raw_input_contents")  # Flush the previous image contents
-        # voxels = self.pc['voxels']
-        # coors = self.pc['voxel_coords']
-        # num_points = np.array(self.pc['voxel_num_points'], dtype=np.int32)
+        voxels = self.pc['voxels']
+        coors = self.pc['voxel_coords']
+        # simulate collate batch with hard coded zero values
+        coors = np.pad(coors, ((0, 0), (1, 0)), mode='constant', constant_values=0)     # batch index = 0
+        num_points = np.array(self.pc['voxel_num_points'], dtype=np.int32)
         
         # DUMMY Input
-        from numpy import random
-        voxels = random.rand(num_voxels, 32, 4)
-        coors = np.random.randint(1,100, size=(num_voxels,4), dtype=np.int32)
-        num_points = np.random.randint(1,1000, size=(num_voxels,), dtype=np.int32)
+        # from numpy import random
+        # voxels = random.rand(num_voxels, 32, 4)
+        # coors = np.random.randint(1,100, size=(num_voxels,4), dtype=np.int32)
+        # num_points = np.random.randint(1,1000, size=(num_voxels,), dtype=np.int32)
         self.channel.request.raw_input_contents.extend([voxels.tobytes(), coors.tobytes(), num_points.tobytes()])
         self.channel.response = self.channel.do_inference() # perform the channel Inference
         self.output = self.client_postprocess.extract_boxes(self.channel.response)
