@@ -7,8 +7,17 @@ try:
     import ros_numpy
 except Exception as E:
     print('[WARNING] {}'.format(E))
+try:
+    # import open3d
+    from clients.postprocess import visualize_open3d2 as V
+except Exception as E:
+    print('[WARNING] {}'.format(E))
 
-import cv2
+# try:
+#     from clients.postprocess import visualize_mayavi  as V
+# except Exception as E:
+#     print('[WARNING] {}'.format(E))
+
 import numpy as np
 
 from tritonclient.grpc import service_pb2, service_pb2_grpc
@@ -138,4 +147,11 @@ class RosInference3D(BaseInference):
         self.channel.request.raw_input_contents.extend([voxels.tobytes(), coors.tobytes(), num_points.tobytes()])
         self.channel.response = self.channel.do_inference() # perform the channel Inference
         self.output = self.client_postprocess.extract_boxes(self.channel.response)
+
+        V.draw_scenes(
+                points=self.pc['points'][:, 1:], 
+                ref_boxes=self.output[0],
+                ref_scores=self.output[1], 
+                ref_labels=self.output[2]
+            )
         print('hold')
