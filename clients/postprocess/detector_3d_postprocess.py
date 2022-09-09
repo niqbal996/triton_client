@@ -416,7 +416,7 @@ class PointPillarPostprocess(Postprocess):
         assert self.scores.size()[-2:] == self.boxes.size()[-2:]
         assert self.scores.size()[-2:] == self.class_ids.size()[-2:]
         self.class_ids = self.class_ids.permute(1, 2, 0).reshape(-1, 2)
-        dir_cls_score = torch.max(self.class_ids, dim=-1)[1]
+        self.class_ids = torch.max(self.class_ids, dim=-1)[1]
 
         self.scores = self.scores.permute(1, 2,
                                         0).reshape(-1, 3)   # TODO change 3  to dynamic Number of classes
@@ -470,61 +470,3 @@ class PointPillarPostprocess(Postprocess):
         #         np.pi * dir_scores.to(bboxes.dtype))
         # bboxes = input_meta['box_type_3d'](bboxes, box_dim=self.box_code_size)
         return bboxes, scores, labels
-
-    def nms_rotated(self,
-                dets: Tensor,
-                scores: Tensor,
-                iou_threshold: float,
-                labels: Optional[Tensor] = None,
-                clockwise: bool = True) -> Tuple[Tensor, Tensor]:
-        """Performs non-maximum suppression (NMS) on the rotated boxes according to
-        their intersection-over-union (IoU).
-
-        Rotated NMS iteratively removes lower scoring rotated boxes which have an
-        IoU greater than iou_threshold with another (higher scoring) rotated box.
-
-        Args:
-            dets (torch.Tensor):  Rotated boxes in shape (N, 5).
-                They are expected to be in
-                (x_ctr, y_ctr, width, height, angle_radian) format.
-            scores (torch.Tensor): scores in shape (N, ).
-            iou_threshold (float): IoU thresh for NMS.
-            labels (torch.Tensor, optional): boxes' label in shape (N,).
-            clockwise (bool): flag indicating whether the positive angular
-                orientation is clockwise. default True.
-                `New in version 1.4.3.`
-
-        Returns:
-            tuple: kept dets(boxes and scores) and indice, which is always the
-            same data type as the input.
-        """
-        if dets.shape[0] == 0:
-            return dets, None
-        if not clockwise:
-            flip_mat = dets.new_ones(dets.shape[-1])
-            flip_mat[-1] = -1
-            dets_cw = dets * flip_mat
-        else:
-            dets_cw = dets
-        multi_label = labels is not None
-        if multi_label:
-            dets_wl = torch.cat((dets_cw, labels.unsqueeze(1)), 1)  # type: ignore
-        else:
-            dets_wl = dets_cw
-        _, order = scores.sort(0, descending=True)
-        dets_sorted = dets_wl.index_select(0, order)
-
-        if torch.__version__ == 'parrots':
-            keep_inds = ext_module.nms_rotated(
-                dets_wl,
-                scores,
-                order,
-                dets_sorted,
-                iou_threshold=iou_threshold,
-                multi_label=multi_label)
-        else:
-            keep_inds = torch.ops.detectron2.nms_rotated(dets_wl, scores, order, dets_sorted,
-                                            iou_threshold, multi_label)
-        dets = torch.cat((dets[keep_inds], scores[keep_inds].reshape(-1, 1)),
-                        dim=1)
-        return dets, keep_inds

@@ -2,6 +2,8 @@ import sys
 import rospy
 from sensor_msgs.msg import PointCloud2
 from sensor_msgs import point_cloud2
+from vision_msgs.msg import Detection3DArray, Detection3D, ObjectHypothesisWithPose, BoundingBox3D
+from geometry_msgs.msg import PoseWithCovariance
 from cv_bridge import CvBridge
 try:
     import ros_numpy
@@ -99,6 +101,7 @@ class RosInference3D(BaseInference):
 
     def start_inference(self):
         rospy.Subscriber(self.channel.params['sub_topic'], PointCloud2, self._pc_callback)
+        self.publisher = rospy.Publisher(self.channel.params['pub_topic'], Detection3DArray, queue_size=10)
         rospy.spin()
 
     def _scale_boxes(self, box, normalized=False):
@@ -148,10 +151,32 @@ class RosInference3D(BaseInference):
         self.channel.response = self.channel.do_inference() # perform the channel Inference
         self.output = self.client_postprocess.extract_boxes(self.channel.response)
 
-        V.draw_scenes(
-                points=self.pc['points'][:, 1:], 
-                ref_boxes=self.output[0],
-                ref_scores=self.output[1], 
-                ref_labels=self.output[2]
-            )
-        print('hold')
+        # V.draw_scenes(
+        #         points=self.pc['points'][:, 1:], 
+        #         ref_boxes=self.output[0],
+        #         ref_scores=self.output[1], 
+        #         ref_labels=self.output[2]
+        #     )
+        detection_array = Detection3DArray()
+        bbox3D = BoundingBox3D()
+        detection = Detection3D()
+        object_hypothesis = ObjectHypothesisWithPose()
+        dummy_pose = PoseWithCovariance()
+        
+        box_array = self.output[0].cpu().numpy()
+        for idx in range(box_array.shape[0]):
+            bbox3D.center.position.x = box_array[idx, 0]
+            bbox3D.center.position.y = box_array[idx, 1]
+            bbox3D.center.position.z = box_array[idx,2]
+            # bbox3D.center.orientation
+            bbox3D.size.x = box_array[idx, 3]
+            bbox3D.size.y = box_array[idx, 4]
+            bbox3D.size.z = box_array[idx, 5] 
+            object_hypothesis.id = self.output[2].cpu()[idx]
+            object_hypothesis.score = self.output[1].cpu()[idx]
+            # TODO Calculate pose and where to put the pose? ObjectHypothesis or Detection3D. 
+            detection.bbox = bbox3D
+            detection.results.append(object_hypothesis)
+            detection_array.detections.append(detection)
+        detection_array.header.stamp = rospy.Time.now()
+        self.publisher.publish(detection_array)
