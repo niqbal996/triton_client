@@ -6,11 +6,14 @@ from cv_bridge import CvBridge
 import time
 import cv2
 import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 
 from tritonclient.grpc import service_pb2, service_pb2_grpc
 import tritonclient.grpc.model_config_pb2 as mc
 from .channel import grpc_channel
 from .base_inference import BaseInference
+from communicator.channel import seerep_channel
 # from utils import image_util
 
 from prometheus_client import start_http_server, Summary, Histogram
@@ -108,8 +111,38 @@ class EvaluateInference(BaseInference):
         # self.channel.output.name = output_name[0]
         # self.channel.request.outputs.extend([self.channel.output])
 
-    def start_inference(self):
-        self.inference_topic = rospy.Subscriber(self.channel.params['sub_topic'], Image, self.image_callback)
+    def start_inference(self, source):
+        rospy.loginfo("Reading data from source: " + source)
+        if source == "rosmsg":
+            self.inference_topic = rospy.Subscriber(self.channel.params['sub_topic'], Image, self.image_callback)
+        elif source == "seerepfb":
+            schan = seerep_channel.SEEREPChannel()
+            ts = schan.gen_timestamp(1610549273, 1938549273)
+
+            # recieve all the images from seerep
+            imgs = schan.run_query(ti=ts)
+            rospy.loginfo("Number of images retireved from SEEREP: " + str(len(imgs)))
+
+            # traverse through the images
+            for img in imgs:
+                # perform an inference on each image, iteratively
+                pred = self.seerep_infer(img)
+
+                bbs = []
+
+                # traverse the perdictions for the current image
+                for p in pred:
+                    start_cord, end_cord = (p[0], p[1]), (p[2]-p[0], p[3]-p[1])
+
+                    bbs.append( (start_cord, end_cord) )
+
+                bb_fb = schan.gen_boundingbox2dlabeledstamped(bbs)
+
+                schan.sendboundingbox(bb_fb)
+
+            # transmit the bb2dls to seerep
+            return
+
         self.gt_topic = rospy.Subscriber(self.channel.params['gt_topic'], Detection2DArray, self.gt_callback)
         rospy.loginfo('Waiting until all the Rosbag messages are processed . . .')
         time.sleep(20)  # TODO wait until the inference is done, NO HARDCODING!
@@ -294,6 +327,25 @@ class EvaluateInference(BaseInference):
     #         self.msg_frame = self.br.cv2_to_imgmsg(self.orig_image, encoding="rgb8")
     #         self.msg_frame.header.stamp = rospy.Time.now()
     #         self.detection.publish(self.msg_frame)
+
+    def seerep_infer(self, image):
+        # convert numpy array to cv2
+        cv_image = image
+
+        self.orig_size = cv_image.shape[0:2]
+        self.orig_image = cv_image.copy()
+        cv_image = cv2.resize(cv_image, (self.channel.input.shape[1], self.channel.input.shape[2]))
+        self.image = self.client_preprocess.image_adjust(cv_image).astype(np.float32)
+        if self.image is not None:
+            self.channel.request.ClearField("inputs")
+            self.channel.request.ClearField("raw_input_contents")   # Flush the previous image contents
+            self.channel.request.inputs.extend([self.channel.input])
+            self.channel.request.raw_input_contents.extend([self.image.tobytes()])
+            self.channel.response = self.channel.do_inference()  # Inference
+            self.prediction = self.client_postprocess.extract_boxes(self.channel.response)
+            self.prediction = self._scale_box_array(self.prediction[0], normalized=False)
+
+        return self.prediction
 
     def image_callback(self, msg):
         self.count += 1

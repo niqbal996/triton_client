@@ -1,4 +1,4 @@
-from base_channel import BaseChannel
+from communicator.channel.base_channel import BaseChannel
 
 import grpc
 from tritonclient.grpc import service_pb2, service_pb2_grpc
@@ -7,13 +7,14 @@ import tritonclient.grpc.model_config_pb2 as mc
 import os
 import sys
 import cv2
+import numpy as np
 
 import flatbuffers
 import grpc
-import Boundingbox, Empty, Header, Image, Point, ProjectInfos, Query, TimeInterval, Timestamp
+import BoundingBoxes2DLabeledStamped, Boundingbox, Empty, Header, Image, Point, ProjectInfos, Query, TimeInterval, Timestamp
 
-import imageService_grpc_fb as imageService
-import metaOperations_grpc_fb as metaOperations
+import image_service_grpc_fb as imageService
+import meta_operations_grpc_fb as metaOperations
 
 
 class SEEREPChannel():
@@ -29,9 +30,10 @@ class SEEREPChannel():
         self._grpc_stubmeta = None
         self._builder = None
         self._projectid = None
+        self._msguuid = None
 
         # register and initialise the stub
-        self.register_channel(socket='seerep.robot.10.249.3.13.nip.io:32141', projname='hunaidproject')
+        self.register_channel(socket='seerep.robot.10.249.3.13.nip.io:31723', projname='simulatedDataWithInstances')
         #self._grpc_metadata() #
 
     def register_channel(self, socket, projname):
@@ -104,14 +106,11 @@ class SEEREPChannel():
 
     def retrieve_project(self, projname):
         '''
-            WHAT THE FUCK
         '''
         Empty.Start(self._builder)
         emptyMsg = Empty.End(self._builder)
         self._builder.Finish(emptyMsg)
         buf = self._builder.Output()
-
-        #Query.Start(self._builder) can't start a query just yet
 
         responseBuf = self._grpc_stubmeta.GetProjects(bytes(buf))
         response = ProjectInfos.ProjectInfos.GetRootAs(responseBuf)
@@ -122,14 +121,15 @@ class SEEREPChannel():
                 projectuuid = response.Projects(i).Uuid().decode("utf-8")
                 print("[FOUND PROJ] ", projectuuid)
 
-        ''' What does this do and how to we use it?
+        return projectuuid
+
+    def string_to_fbmsg (self, projectuuid):
         projectuuidString = self._builder.CreateString(projectuuid)
         Query.StartProjectuuidVector(self._builder, 1)
-        builder.PrependUOffsetTRelative(projectuuidString)
+        self._builder.PrependUOffsetTRelative(projectuuidString)
         projectuuidMsg = self._builder.EndVector()
-        '''
 
-        return projectuuid
+        return projectuuidMsg
 
     def init_builder(self):
         builder = flatbuffers.Builder(1024)
@@ -147,16 +147,16 @@ class SEEREPChannel():
         Point.Start(self._builder)
         Point.AddX(self._builder, start_coord[0])
         Point.AddY(self._builder, start_coord[1])
-        Point.AddZ(self._builder, start_coord[2])
+        #Point.AddZ(self._builder, start_coord[2])
         pointMin = Point.End(self._builder)
 
         Point.Start(self._builder)
         Point.AddX(self._builder, end_coord[0])
         Point.AddY(self._builder, end_coord[1])
-        Point.AddZ(self._builder, end_coord[2])
+        #Point.AddZ(self._builder, end_coord[2])
         pointMax = Point.End(self._builder)
 
-        frameId = builder.CreateString("map")
+        frameId = self._builder.CreateString("map")
         Header.Start(self._builder)
         Header.AddFrameId(self._builder, frameId)
         header = Header.End(self._builder)
@@ -169,6 +169,39 @@ class SEEREPChannel():
 
         #Query.AddBoundingbox(self._builder, boundingbox)
         return boundingbox
+
+    def gen_boundingbox2dlabeledstamped (self, boundingBoxes):
+
+        projuuid_str = self.string_to_fbmsg(self._projectid)
+        msguuid_str = self.string_to_fbmsg(self._msguuid)
+
+        # build header
+        Header.Start(self._builder)
+        Header.AddUuidProject(self._builder, projuuid_str)
+        Header.AddUuidMsgs(self._builder, msguuid_str)
+        header = Header.End(self._builder)
+
+        # a labels_bb array which will hold all the bbs
+        label_bbs = []
+
+        # create bounding box(es)
+        for bb in boundingBoxes:
+            x = self.gen_boundingbox(bb[0], bb[1])
+            label_bbs.append(x)
+
+        BoundingBoxes2DLabeledStamped.StartLabelsBbVector(self._builder, len(label_bbs))
+        for bb in reversed(label_bbs):
+            self._builder.PrependUOffsetTRelative(bb)
+        self._builder.EndVector()
+
+        # Start a new bounding box 2d labeled stamped
+        BoundingBoxes2DLabeledStamped.Start(self._builder)
+
+        BoundingBoxes2DLabeledStamped.AddHeader(self._builder, header)
+
+        #BoundingBoxes2DLabeledStamped.AddLabelsBb(self._builder, label_bbs[0])
+
+        return BoundingBoxes2DLabeledStamped.End(self._builder)
 
     def gen_timestamp(self, starttime, endtime):
         '''
@@ -223,9 +256,23 @@ class SEEREPChannel():
 
         self._builder.Finish(queryMsg)
         buf = self._builder.Output()
+        
+        images = []
 
         for responseBuf in self._grpc_stub.GetImage(bytes(buf)):
             response = Image.Image.GetRootAs(responseBuf)
+
+            # this should not be inside the loop
+            self._msguuid = response.Header().UuidMsgs().decode("utf-8")
+
+            images.append(np.reshape(response.DataAsNumpy(), (response.Height(), response.Width(), 3)))
+
+            break # for testing use only one image
+
+            ''' Uncomment to visualize images and display them
+            plt.imshow(np.reshape(response.DataAsNumpy(), (response.Height(), response.Width(), 3)))
+            plt.show()
+            input()
             print("uuidmsg: " + response.Header().UuidMsgs().decode("utf-8"))
             print("first label: " + response.LabelsBb(0).LabelWithInstance().Label().decode("utf-8"))
             print(
@@ -238,6 +285,16 @@ class SEEREPChannel():
                 + " "
                 + str(response.LabelsBb(0).BoundingBox().PointMax().Y())
             )
+            '''
+        return images
+
+    def sendboundingbox(self, bb):
+        self._builder.Finish(bb)
+        buf = self._builder.Output()
+        bufBytes = [ bytes(buf) ]
+
+        self._grpc_stub.AddBoundingBoxes2dLabeled( iter(bufBytes) )
+
 
 def main():
     schan = SEEREPChannel()
