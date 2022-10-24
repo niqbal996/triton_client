@@ -34,6 +34,7 @@ class SEEREPChannel():
 
         # register and initialise the stub
         self.register_channel(socket='seerep.robot.10.249.3.13.nip.io:31723', projname='simulatedDataWithInstances')
+        #self.register_channel(socket='agrigaia-ur.ni.dfki:31723', projname='simulatedDataWithInstances')
         #self._grpc_metadata() #
 
     def register_channel(self, socket, projname):
@@ -125,11 +126,14 @@ class SEEREPChannel():
 
     def string_to_fbmsg (self, projectuuid):
         projectuuidString = self._builder.CreateString(projectuuid)
+        '''
         Query.StartProjectuuidVector(self._builder, 1)
         self._builder.PrependUOffsetTRelative(projectuuidString)
         projectuuidMsg = self._builder.EndVector()
 
         return projectuuidMsg
+        '''
+        return projectuuidString
 
     def init_builder(self):
         builder = flatbuffers.Builder(1024)
