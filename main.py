@@ -42,7 +42,7 @@ import yaml
 # from utils.ros_input import RealSenseNode
 
 from communicator import RosInference, EvaluateInference
-from communicator.channel import grpc_channel
+from communicator.channel import grpc_channel, seerep_channel
 from clients import Yolov5client, FCOS_client
 
 
@@ -73,7 +73,7 @@ def parse_args():
                         type=str,
                         required=False,
                         # choices=['YOLOv5n', 'FCOS', 'fcos_weed_detector'],
-                        default="YOLOv5n",
+                        default="YOLOv5nCROP",
                         help='Name of model')
     parser.add_argument(
         '-x',
@@ -104,9 +104,9 @@ def parse_args():
         help='Type of scaling to apply to image pixels. Default is NONE.')
     parser.add_argument(
         '-i',
-        '--image-src',
+        '--imagesrc',
         type=str,
-        choices=['ros', 'local'],
+        choices=['ros', 'local', 'seerepfb'],
         required=False,
         default='ros',
         help='Source of input images to run inference on. Default is ROS image topic')
@@ -135,10 +135,10 @@ if __name__ == '__main__':
     channel = grpc_channel.GRPCChannel(param, FLAGS)
 
     #define inference
-    inference = RosInference(channel, client)
-    inference.start_inference()
+    #inference = RosInference(channel, client)
+    #inference.start_inference()
     evaluation = EvaluateInference(channel, client)
-    evaluation.start_inference()
+    evaluation.start_inference(FLAGS.imagesrc)
     # # input_name, output_name, c, h, w, format, dtype = parse_model(
     # #     metadata_response, config_response.config)
     # #
