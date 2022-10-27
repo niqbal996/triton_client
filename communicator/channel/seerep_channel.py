@@ -1,4 +1,6 @@
+
 from communicator.channel.base_channel import BaseChannel
+#from base_channel import BaseChannel
 
 import grpc
 from tritonclient.grpc import service_pb2, service_pb2_grpc
@@ -33,9 +35,27 @@ class SEEREPChannel():
         self._msguuid = None
 
         # register and initialise the stub
-        self.register_channel(socket='seerep.robot.10.249.3.13.nip.io:31723', projname='simulatedDataWithInstances')
+        self.register_channel(socket='localhost:9090', projname='simulatedDataWithInstances')
+        #self.register_channel(socket='seerep.robot.10.249.3.13.nip.io:31723', projname='simulatedDataWithInstances')
         #self.register_channel(socket='agrigaia-ur.ni.dfki:31723', projname='simulatedDataWithInstances')
         #self._grpc_metadata() #
+
+    def make_channel (self, server, secure=False):
+        # server with certs
+
+        if secure:
+            __location__ = os.path.realpath(
+                os.path.join(os.getcwd(), os.path.dirname(__file__)))
+            with open(os.path.join(__location__, 'tls.pem'), 'rb') as f:
+                root_cert = f.read()
+            creds = grpc.ssl_channel_credentials(root_cert)
+
+            channel = grpc.secure_channel(server, creds) # use with non-local deployment
+
+        else:
+            channel = grpc.insecure_channel(server) # use with local deployment
+
+        return channel
 
     def register_channel(self, socket, projname):
         """
@@ -43,19 +63,28 @@ class SEEREPChannel():
          socket: String, Port and IP address of seerep server
          seerep.robot.10.249.3.13.nip.io:32141
         """
-        # server with certs
-        __location__ = os.path.realpath(
-            os.path.join(os.getcwd(), os.path.dirname(__file__)))
-        with open(os.path.join(__location__, 'tls.pem'), 'rb') as f:
-            root_cert = f.read()
-        server = socket
-        creds = grpc.ssl_channel_credentials(root_cert)
-        channel = grpc.secure_channel(server, creds)
+        channel = self.make_channel(socket)
 
         self._grpc_stub  = imageService.ImageServiceStub(channel)
         self._grpc_stubmeta = metaOperations.MetaOperationsStub(channel)  
         self._builder = self.init_builder()
         self._projectid = self.retrieve_project(projname)
+
+    def secondary_channel(self, socket, projname):
+        """
+         Establish another channel for sending
+         register grpc triton channel
+         socket: String, Port and IP address of seerep server
+         seerep.robot.10.249.3.13.nip.io:32141
+        """
+        channel = self.make_channel(socket)
+
+        grpc_stub  = imageService.ImageServiceStub(channel)
+        grpc_stubmeta = metaOperations.MetaOperationsStub(channel)  
+        builder = self.init_builder()
+        projectid = self.retrieve_project(projname)
+
+        return (grpc_stub, grpc_stubmeta, builder, projectid)
 
     def fetch_channel(self):
         """
@@ -203,7 +232,8 @@ class SEEREPChannel():
 
         BoundingBoxes2DLabeledStamped.AddHeader(self._builder, header)
 
-        #BoundingBoxes2DLabeledStamped.AddLabelsBb(self._builder, label_bbs[0])
+        for label_bb in label_bbs:
+            BoundingBoxes2DLabeledStamped.AddLabelsBb(self._builder, label_bb)
 
         return BoundingBoxes2DLabeledStamped.End(self._builder)
 
@@ -271,33 +301,39 @@ class SEEREPChannel():
 
             images.append(np.reshape(response.DataAsNumpy(), (response.Height(), response.Width(), 3)))
 
-            break # for testing use only one image
-
-            ''' Uncomment to visualize images and display them
-            plt.imshow(np.reshape(response.DataAsNumpy(), (response.Height(), response.Width(), 3)))
-            plt.show()
-            input()
-            print("uuidmsg: " + response.Header().UuidMsgs().decode("utf-8"))
-            print("first label: " + response.LabelsBb(0).LabelWithInstance().Label().decode("utf-8"))
-            print(
-                "first BoundingBox (Xmin,Ymin,Xmax,Ymax): "
-                + str(response.LabelsBb(0).BoundingBox().PointMin().X())
-                + " "
-                + str(response.LabelsBb(0).BoundingBox().PointMin().Y())
-                + " "
-                + str(response.LabelsBb(0).BoundingBox().PointMax().X())
-                + " "
-                + str(response.LabelsBb(0).BoundingBox().PointMax().Y())
-            )
-            '''
+            #''' Uncomment to visualize images and display them
+            #import matplotlib.pyplot as plt
+            #plt.imshow(np.reshape(response.DataAsNumpy(), (response.Height(), response.Width(), 3)))
+            #plt.show()
+            nbbs = response.LabelsBbLength()
+            print(nbbs)
+            for x in range( nbbs ):
+                print("uuidmsg: " + response.Header().UuidMsgs().decode("utf-8"))
+                print("first label: " + response.LabelsBb(0).LabelWithInstance().Label().decode("utf-8"))
+                print(
+                    "first BoundingBox (Xmin,Ymin,Xmax,Ymax): "
+                    + str(response.LabelsBb(0).BoundingBox().PointMin().X())
+                    + " "
+                    + str(response.LabelsBb(0).BoundingBox().PointMin().Y())
+                    + " "
+                    + str(response.LabelsBb(0).BoundingBox().PointMax().X())
+                    + " "
+                    + str(response.LabelsBb(0).BoundingBox().PointMax().Y())
+                )
+            #'''
+            break
         return images
 
     def sendboundingbox(self, bb):
+        send_channel, _, _, _ = self.secondary_channel(socket='localhost:9090', projname='simulatedDataWithInstances')
+
         self._builder.Finish(bb)
         buf = self._builder.Output()
         bufBytes = [ bytes(buf) ]
 
-        self._grpc_stub.AddBoundingBoxes2dLabeled( iter(bufBytes) )
+        ret = send_channel.AddBoundingBoxes2dLabeled( iter(bufBytes) )
+
+        print("[bb service call]" + str(ret.decode()))
 
 
 def main():
