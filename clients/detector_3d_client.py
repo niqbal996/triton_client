@@ -1,7 +1,7 @@
 import tritonclient.grpc.model_config_pb2 as mc
 
 from .base_client import Client
-from .preprocess import PointpillarPreprocess
+from .preprocess import det3DPreprocess
 from .postprocess import PointPillarPostprocess
 
 class Pointpillars_client(Client):
@@ -18,22 +18,25 @@ class Pointpillars_client(Client):
         self._clients[clienttype] = client
 
     def get_preprocess(self):
-        return PointpillarPreprocess()
+        return det3DPreprocess()
 
     def get_postprocess(self):
         return PointPillarPostprocess()
 
     def parse_model(self, model_metadata, model_config):
-        if len(model_metadata.inputs) != 3:     # voxels, coords, numpoints
+        if len(model_metadata.inputs) != 5:     # voxels, coords, numpoints     #DEBUG
             raise Exception("expecting 3 input, got {}".format(
                 len(model_metadata.inputs)))
         if len(model_metadata.outputs) != 3:    # bbox_preds, dir_scores, scores
             raise Exception("expecting 3 output, got {}".format(
                 len(model_metadata.outputs)))
 
-        input_metadata = [input for input in model_metadata.inputs]
-        input_config = model_config.input[0]
-        output_metadata = [output for output in model_metadata.outputs]
+        input_metadata = [{'name': input.name, 
+                           'shape': input.shape,
+                           'dtype': input.datatype} for input in model_metadata.inputs]
+        output_metadata = [{'name': output.name, 
+                           'shape': output.shape,
+                           'dtype': output.datatype} for output in model_metadata.outputs]
         # input_config.format = 2
         # if output_metadata.datatype != "FP32":
         #     raise Exception("expecting output datatype to be FP32, model '" +
@@ -83,6 +86,4 @@ class Pointpillars_client(Client):
         #     h = input_metadata.shape[2 if input_batch_dim else 1]
         #     w = input_metadata.shape[3 if input_batch_dim else 2]
 
-        return ([input.name for input in input_metadata], 
-                [output.name for output in output_metadata],
-                [input.datatype for input in input_metadata])
+        return (input_metadata, output_metadata)

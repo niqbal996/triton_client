@@ -11,7 +11,7 @@ except Exception as E:
     print('[WARNING] {}'.format(E))
 try:
     # import open3d
-    from clients.postprocess import visualize_open3d2 as V
+    from clients.postprocess import visualize_open3d as V
 except Exception as E:
     print('[WARNING] {}'.format(E))
 
@@ -52,6 +52,8 @@ class RosInference3D(BaseInference):
         self.client_preprocess = client.get_preprocess()
         self.class_names = self.client_postprocess.load_class_names()
 
+        self.dtypes = {"FP32"}
+
     def _register_inference(self):
         """
         register inference
@@ -70,34 +72,62 @@ class RosInference3D(BaseInference):
         """
         # collect meta data of model and configuration
         meta_data = self.channel.get_metadata()
-        self.channel.input, self.channel.output, self.input_types = self.client.parse_model(
+        self.input_meta, self.output_meta = self.client.parse_model(
             meta_data["metadata_response"], meta_data["config_response"].config)
-        
-        self.output0 = service_pb2.ModelInferRequest().InferRequestedOutputTensor() # boxes
-        self.output0.name = self.channel.output[0]
-        self.output1 = service_pb2.ModelInferRequest().InferRequestedOutputTensor() # class_IDs
-        self.output1.name = self.channel.output[1]
-        self.output2 = service_pb2.ModelInferRequest().InferRequestedOutputTensor() # scores
-        self.output2.name = self.channel.output[2]
+        # self.channel.input, self.channel.output, self.input_types = 1
+        self.channel.input = [input['name'] for input in self.input_meta]
+        self.channel.output = [output['name'] for output in self.output_meta]
 
-        self.channel.request.outputs.extend([self.output0,
-                                             self.output1,
-                                             self.output2])
 
-        self.input0 = service_pb2.ModelInferRequest().InferInputTensor() # voxels
-        self.input0.name = self.channel.input[0]
-        self.input0.datatype = self.input_types[0]
-        tmp = 10000
-        self.input0.shape.extend([tmp, 32, 4])
-        self.input1 = service_pb2.ModelInferRequest().InferInputTensor() # coors
-        self.input1.name = self.channel.input[1]
-        self.input1.datatype = self.input_types[1]
-        self.input1.shape.extend([tmp, 4])
-        self.input2 = service_pb2.ModelInferRequest().InferInputTensor() # num_points
-        self.input2.name = self.channel.input[2]
-        self.input2.datatype = self.input_types[2]
-        self.input2.shape.extend([tmp])
-        self.channel.request.inputs.extend([self.input0, self.input1, self.input2])
+        self.outputs = {}
+        for output,i  in zip(self.output_meta, range(len(self.output_meta))):
+            self.outputs['output_{}'.format(i)] = service_pb2.ModelInferRequest().InferRequestedOutputTensor()
+            self.outputs['output_{}'.format(i)].name = output['name']
+            self.channel.request.outputs.extend([self.outputs['output_{}'.format(i)]])
+
+        self.inputs = {}
+        for input, i in zip(self.input_meta, range(len(self.input_meta))):
+            self.inputs['input_{}'.format(i)] = service_pb2.ModelInferRequest().InferInputTensor()
+            self.inputs['input_{}'.format(i)].name = input['name']
+            self.inputs['input_{}'.format(i)].datatype = input['dtype']
+            if -1 in input['shape']:
+                input['shape'][0] = 10000           # tmp
+            self.inputs['input_{}'.format(i)].shape.extend(input['shape'])
+            self.channel.request.inputs.extend([self.inputs['input_{}'.format(i)]])
+
+        # self.output0 = service_pb2.ModelInferRequest().InferRequestedOutputTensor() # boxes
+        # self.output0.name = self.channel.output[0]
+        # self.output1 = service_pb2.ModelInferRequest().InferRequestedOutputTensor() # class_IDs
+        # self.output1.name = self.channel.output[1]
+        # self.output2 = service_pb2.ModelInferRequest().InferRequestedOutputTensor() # scores
+        # self.output2.name = self.channel.output[2]
+
+        # self.channel.request.outputs.extend([self.output0,
+        #                                      self.output1,
+        #                                      self.output2])
+
+        # self.input0 = service_pb2.ModelInferRequest().InferInputTensor() # voxels
+        # self.input0.name = self.channel.input[0]
+        # self.input0.datatype = self.input_types[0]
+        # tmp = 10000
+        # self.input0.shape.extend([tmp, 32, 4])
+        # self.input1 = service_pb2.ModelInferRequest().InferInputTensor() # coors
+        # self.input1.name = self.channel.input[1]
+        # self.input1.datatype = self.input_types[1]
+        # self.input1.shape.extend([tmp, 4])
+        # self.input2 = service_pb2.ModelInferRequest().InferInputTensor() # num_points
+        # self.input2.name = self.channel.input[2]
+        # self.input2.datatype = self.input_types[2]
+        # self.input2.shape.extend([tmp])
+        # self.input3 = service_pb2.ModelInferRequest().InferInputTensor() # num_points
+        # self.input3.name = self.channel.input[2]
+        # self.input3.datatype = self.input_types[2]
+        # self.input3.shape.extend([tmp])
+        # self.input4 = service_pb2.ModelInferRequest().InferInputTensor() # num_points
+        # self.input4.name = self.channel.input[2]
+        # self.input4.datatype = self.input_types[2]
+        # self.input4.shape.extend([tmp])
+        # self.channel.request.inputs.extend([self.input0, self.input1, self.input2])
 
     def start_inference(self):
         rospy.Subscriber(self.channel.params['sub_topic'], PointCloud2, self._pc_callback)
@@ -127,27 +157,38 @@ class RosInference3D(BaseInference):
         self.pc = np.array(list(point_cloud2.read_points(msg, field_names = ("x", "y", "z", "reflectivity"), skip_nans=True)))
         self.pc = self.client_preprocess.filter_pc(self.pc)
         # the number of voxels changes every sample
-        num_voxels = self.pc['voxels'].shape[0]
-        self.input0.ClearField("shape")
-        self.input1.ClearField("shape")
-        self.input2.ClearField("shape")
-        self.input0.shape.extend([num_voxels, 32, 4])
-        self.input1.shape.extend([num_voxels, 4])
-        self.input2.shape.extend([num_voxels])
+        num_voxels = self.pc[0].shape[0]
+
+        for key in self.inputs:
+            tmp_shape = self.inputs[key].shape
+            self.inputs[key].ClearField("shape")
+            tmp_shape[0] = num_voxels
+            self.inputs[key].shape.extend(tmp_shape)
+        # self.input0.ClearField("shape")
+        # self.input1.ClearField("shape")
+        # self.input2.ClearField("shape")
+        # self.input0.shape.extend([num_voxels, 32, 4])
+        # self.input1.shape.extend([num_voxels, 4])
+        # self.input2.shape.extend([num_voxels])
         # self.channel.request.ClearField("inputs")
         self.channel.request.ClearField("raw_input_contents")  # Flush the previous image contents
-        voxels = self.pc['voxels']
-        coors = self.pc['voxel_coords']
+        # voxels = self.pc['voxels']
+        # coors = self.pc['voxel_coords']
+        # num_points = self.pc['voxel_num_points']
         # simulate collate batch with hard coded zero values
-        coors = np.pad(coors, ((0, 0), (1, 0)), mode='constant', constant_values=0)     # batch index = 0
-        num_points = np.array(self.pc['voxel_num_points'], dtype=np.int32)
+        # coors = np.pad(coors, ((0, 0), (1, 0)), mode='constant', constant_values=0)     # batch index = 0
+        # num_points = np.array(self.pc['voxel_num_points'], dtype=np.int32)
         
         # DUMMY Input
         # from numpy import random
         # voxels = random.rand(num_voxels, 32, 4)
         # coors = np.random.randint(1,100, size=(num_voxels,4), dtype=np.int32)
         # num_points = np.random.randint(1,1000, size=(num_voxels,), dtype=np.int32)
-        self.channel.request.raw_input_contents.extend([voxels.tobytes(), coors.tobytes(), num_points.tobytes()])
+        self.channel.request.raw_input_contents.extend([self.pc[0].tobytes(),
+                                                        self.pc[2].tobytes(),
+                                                        self.pc[1].tobytes(),
+                                                        (num_voxels).to_bytes(2, byteorder='big'), 
+                                                        np.array([512, 512, 1]).tobytes()])
         self.channel.response = self.channel.do_inference() # perform the channel Inference
         self.output = self.client_postprocess.extract_boxes(self.channel.response)
 

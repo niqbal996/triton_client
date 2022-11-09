@@ -23,7 +23,7 @@ class PointpillarPreprocess(Preprocess):
             training=False, 
             num_point_features=self.point_feature_encoder.num_point_features
         )
-
+        
     def preprocess(self):
         pass
 
