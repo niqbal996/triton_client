@@ -13,10 +13,14 @@ import numpy as np
 
 import flatbuffers
 import grpc
-import BoundingBoxes2DLabeledStamped, Boundingbox, Empty, Header, Image, Point, ProjectInfos, Query, TimeInterval, Timestamp
+from seerep.fb import BoundingBoxes2DLabeledStamped, Boundingbox, Empty, Header, Image, Point, ProjectInfos, Query, TimeInterval, Timestamp
 
-import image_service_grpc_fb as imageService
-import meta_operations_grpc_fb as metaOperations
+from seerep.fb import image_service_grpc_fb as imageService
+from seerep.fb import meta_operations_grpc_fb as metaOperations
+
+import communicator.channel.util_fb as util_fb
+
+import uuid
 
 
 class SEEREPChannel():
@@ -33,16 +37,18 @@ class SEEREPChannel():
         self._builder = None
         self._projectid = None
         self._msguuid = None
+        self.socket = 'localhost:9090'
+        self.projname = 'sendbbproj'
 
         # register and initialise the stub
-        self.register_channel(socket='localhost:9090', projname='simulatedDataWithInstances')
+        self.channel = self.make_channel()
+        self.register_channel()
         #self.register_channel(socket='seerep.robot.10.249.3.13.nip.io:31723', projname='simulatedDataWithInstances')
         #self.register_channel(socket='agrigaia-ur.ni.dfki:31723', projname='simulatedDataWithInstances')
         #self._grpc_metadata() #
 
-    def make_channel (self, server, secure=False):
+    def make_channel (self, secure=False):
         # server with certs
-
         if secure:
             __location__ = os.path.realpath(
                 os.path.join(os.getcwd(), os.path.dirname(__file__)))
@@ -50,39 +56,36 @@ class SEEREPChannel():
                 root_cert = f.read()
             creds = grpc.ssl_channel_credentials(root_cert)
 
-            channel = grpc.secure_channel(server, creds) # use with non-local deployment
+            channel = grpc.secure_channel(self.socket, creds) # use with non-local deployment
 
         else:
-            channel = grpc.insecure_channel(server) # use with local deployment
+            channel = grpc.insecure_channel(self.socket) # use with local deployment
 
         return channel
 
-    def register_channel(self, socket, projname):
+    def register_channel(self):
         """
          register grpc triton channel
          socket: String, Port and IP address of seerep server
          seerep.robot.10.249.3.13.nip.io:32141
         """
-        channel = self.make_channel(socket)
-
-        self._grpc_stub  = imageService.ImageServiceStub(channel)
-        self._grpc_stubmeta = metaOperations.MetaOperationsStub(channel)  
+        self._grpc_stub  = imageService.ImageServiceStub(self.channel)
+        self._grpc_stubmeta = metaOperations.MetaOperationsStub(self.channel)  
         self._builder = self.init_builder()
-        self._projectid = self.retrieve_project(projname)
+        self._msgUuid = None
+        self._projectid = self.retrieve_project(self.projname)
 
-    def secondary_channel(self, socket, projname):
+    def secondary_channel(self):
         """
          Establish another channel for sending
          register grpc triton channel
          socket: String, Port and IP address of seerep server
          seerep.robot.10.249.3.13.nip.io:32141
         """
-        channel = self.make_channel(socket)
-
-        grpc_stub  = imageService.ImageServiceStub(channel)
-        grpc_stubmeta = metaOperations.MetaOperationsStub(channel)  
+        grpc_stub  = imageService.ImageServiceStub(self.channel)
+        grpc_stubmeta = metaOperations.MetaOperationsStub(self.channel)  
         builder = self.init_builder()
-        projectid = self.retrieve_project(projname)
+        projectid = self.retrieve_project(self.projname)
 
         return (grpc_stub, grpc_stubmeta, builder, projectid)
 
@@ -150,6 +153,7 @@ class SEEREPChannel():
             if response.Projects(i).Name().decode("utf-8") == projname:
                 projectuuid = response.Projects(i).Uuid().decode("utf-8")
                 print("[FOUND PROJ] ", projectuuid)
+                break
 
         return projectuuid
 
@@ -197,7 +201,7 @@ class SEEREPChannel():
         Boundingbox.Start(self._builder)
         Boundingbox.AddPointMin(self._builder, pointMin)
         Boundingbox.AddPointMax(self._builder, pointMax)
-        Boundingbox.AddHeader(self._builder, header)
+        #Boundingbox.AddHeader(self._builder, header)
         boundingbox = Boundingbox.End(self._builder)
 
         #Query.AddBoundingbox(self._builder, boundingbox)
@@ -324,8 +328,43 @@ class SEEREPChannel():
             break
         return images
 
+    def sendboundingbox(self, bbs):
+        header = util_fb.createHeader(
+            self._builder,
+            projectUuid = self._projectid,
+            msgUuid= self._msguuid
+        )
+
+        boundingBoxes = util_fb.createBoundingBoxes2d(
+            self._builder,
+            [util_fb.createPoint2d(self._builder, bb[0][0], bb[0][1]) for bb in bbs],
+            [util_fb.createPoint2d(self._builder, bb[1][0], bb[1][1]) for bb in bbs],
+        )
+        labelWithInstances = util_fb.createLabelsWithInstance(
+            self._builder,
+            ["BoundingBoxLabel" + str(i) for i in range(len(bbs))],
+            [str(uuid.uuid4()) for _ in range(len(bbs))],
+        )
+        labelsBb = util_fb.createBoundingBoxes2dLabeled(self._builder, labelWithInstances, boundingBoxes)
+
+        BoundingBoxes2DLabeledStamped.StartLabelsBbVector(self._builder, len(labelsBb))
+        for labelBb in reversed(labelsBb):
+            self._builder.PrependUOffsetTRelative(labelBb)
+        labelsBbVector = self._builder.EndVector()
+
+        labelsBbVector = util_fb.createBoundingBox2dLabeledStamped(self._builder, header, labelsBbVector)
+        self._builder.Finish(labelsBbVector)
+        buf = self._builder.Output()
+
+        msg = [bytes(buf)]
+
+        send_channel, _, _, _ = self.secondary_channel()
+        ret = send_channel.AddBoundingBoxes2dLabeled( iter(msg) )
+
+
+    '''
     def sendboundingbox(self, bb):
-        send_channel, _, _, _ = self.secondary_channel(socket='localhost:9090', projname='simulatedDataWithInstances')
+        send_channel, _, _, _ = self.secondary_channel()
 
         self._builder.Finish(bb)
         buf = self._builder.Output()
@@ -334,7 +373,7 @@ class SEEREPChannel():
         ret = send_channel.AddBoundingBoxes2dLabeled( iter(bufBytes) )
 
         print("[bb service call]" + str(ret.decode()))
-
+    '''
 
 def main():
     schan = SEEREPChannel()

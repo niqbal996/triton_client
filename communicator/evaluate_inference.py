@@ -117,10 +117,10 @@ class EvaluateInference(BaseInference):
             self.inference_topic = rospy.Subscriber(self.channel.params['sub_topic'], Image, self.image_callback)
         elif source == "seerepfb":
             schan = seerep_channel.SEEREPChannel()
-            ts = schan.gen_timestamp(1610549273, 1938549273)
+            #ts = schan.gen_timestamp(1610549273, 1938549273)
 
             # recieve all the images from seerep
-            imgs = schan.run_query(ti=ts)
+            imgs = schan.run_query()
             rospy.loginfo("Number of images retireved from SEEREP: " + str(len(imgs)))
 
             # traverse through the images
@@ -136,9 +136,10 @@ class EvaluateInference(BaseInference):
 
                     bbs.append( (start_cord, end_cord) )
 
-                bb_fb = schan.gen_boundingbox2dlabeledstamped(bbs)
+                schan.sendboundingbox(bbs)
+                rospy.loginfo("Transfered to SEEREP")
 
-                schan.sendboundingbox(bb_fb)
+                break
 
             # transmit the bb2dls to seerep
             return
