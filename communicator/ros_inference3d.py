@@ -52,8 +52,6 @@ class RosInference3D(BaseInference):
         self.client_preprocess = client.get_preprocess()
         self.class_names = self.client_postprocess.load_class_names()
 
-        self.dtypes = {"FP32"}
-
     def _register_inference(self):
         """
         register inference
@@ -78,7 +76,12 @@ class RosInference3D(BaseInference):
         self.channel.input = [input['name'] for input in self.input_meta]
         self.channel.output = [output['name'] for output in self.output_meta]
 
-
+        self.dtypes = {'FP32' : 'float32',
+                       'FP64' : 'float64',
+                       'INT16': 'int16',
+                       'INT32': 'int32'
+                       # TODO add more types in future
+                       }
         self.outputs = {}
         for output,i  in zip(self.output_meta, range(len(self.output_meta))):
             self.outputs['output_{}'.format(i)] = service_pb2.ModelInferRequest().InferRequestedOutputTensor()
@@ -175,18 +178,10 @@ class RosInference3D(BaseInference):
         # self.input2.shape.extend([num_voxels])
         # self.channel.request.ClearField("inputs")
         
-        # voxels = self.pc['voxels']
-        # coors = self.pc['voxel_coords']
-        # num_points = self.pc['voxel_num_points']
-        # simulate collate batch with hard coded zero values
-        # coors = np.pad(coors, ((0, 0), (1, 0)), mode='constant', constant_values=0)     # batch index = 0
-        # num_points = np.array(self.pc['voxel_num_points'], dtype=np.int32)
-        
-        # DUMMY Input
-        # from numpy import random
-        # voxels = random.rand(num_voxels, 32, 4)
-        # coors = np.random.randint(1,100, size=(num_voxels,4), dtype=np.int32)
-        # num_points = np.random.randint(1,1000, size=(num_voxels,), dtype=np.int32)
+        # Make sure the data types are correct for each input before sending them as bytes, this causes wrong array values on the server 
+        assert self.pc[0].dtype.name == self.dtypes[self.inputs['input_0'].datatype]
+        assert self.pc[1].dtype.name == self.dtypes[self.inputs['input_1'].datatype]
+        assert self.pc[2].dtype.name == self.dtypes[self.inputs['input_2'].datatype]
         self.channel.request.raw_input_contents.extend([self.pc[0].tobytes(),
                                                         self.pc[1].tobytes(),
                                                         self.pc[2].tobytes(),

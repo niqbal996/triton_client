@@ -38,5 +38,12 @@ class det3DPreprocess(Preprocess):
         pad = np.zeros((pointcloud_array.shape[0], 1))
         pointcloud_array = np.concatenate((pointcloud_array, pad), axis=1)
         self.points = self.voxel_generator.generate(pointcloud_array)
+        #convert to list instead of tuple
+        self.points = list(self.points)
+        #convert data type of voxels from float64 to float32
+        self.points[0] = self.points[0].astype(np.float32)
+        # add batch dimension at index 0 to coordinates
+        pad = np.zeros((self.points[1].shape[0], 1), dtype=np.int32)
+        self.points[1] = np.concatenate((pad, self.points[1]), axis=1)
 
         return self.points
