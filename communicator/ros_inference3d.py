@@ -158,12 +158,15 @@ class RosInference3D(BaseInference):
         self.pc = self.client_preprocess.filter_pc(self.pc)
         # the number of voxels changes every sample
         num_voxels = self.pc[0].shape[0]
-
-        for key in self.inputs:
+        self.channel.request.ClearField("raw_input_contents")  # Flush the previous image content
+        for key, idx in zip(self.inputs, range(len(self.inputs))):
             tmp_shape = self.inputs[key].shape
             self.inputs[key].ClearField("shape")
             tmp_shape[0] = num_voxels
+            self.channel.request.inputs[idx].ClearField("shape")
+            self.channel.request.inputs[idx].shape.extend(tmp_shape)
             self.inputs[key].shape.extend(tmp_shape)
+
         # self.input0.ClearField("shape")
         # self.input1.ClearField("shape")
         # self.input2.ClearField("shape")
@@ -171,7 +174,7 @@ class RosInference3D(BaseInference):
         # self.input1.shape.extend([num_voxels, 4])
         # self.input2.shape.extend([num_voxels])
         # self.channel.request.ClearField("inputs")
-        self.channel.request.ClearField("raw_input_contents")  # Flush the previous image contents
+        
         # voxels = self.pc['voxels']
         # coors = self.pc['voxel_coords']
         # num_points = self.pc['voxel_num_points']
@@ -185,10 +188,9 @@ class RosInference3D(BaseInference):
         # coors = np.random.randint(1,100, size=(num_voxels,4), dtype=np.int32)
         # num_points = np.random.randint(1,1000, size=(num_voxels,), dtype=np.int32)
         self.channel.request.raw_input_contents.extend([self.pc[0].tobytes(),
-                                                        self.pc[2].tobytes(),
                                                         self.pc[1].tobytes(),
-                                                        (num_voxels).to_bytes(2, byteorder='big'), 
-                                                        np.array([512, 512, 1]).tobytes()])
+                                                        self.pc[2].tobytes(),
+                                                        ])
         self.channel.response = self.channel.do_inference() # perform the channel Inference
         self.output = self.client_postprocess.extract_boxes(self.channel.response)
 

@@ -24,7 +24,7 @@ class Pointpillars_client(Client):
         return PointPillarPostprocess()
 
     def parse_model(self, model_metadata, model_config):
-        if len(model_metadata.inputs) != 5:     # voxels, coords, numpoints     #DEBUG
+        if len(model_metadata.inputs) != 3:     # voxels, coords, numpoints     #DEBUG
             raise Exception("expecting 3 input, got {}".format(
                 len(model_metadata.inputs)))
         if len(model_metadata.outputs) != 3:    # bbox_preds, dir_scores, scores
