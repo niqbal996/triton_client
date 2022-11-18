@@ -1,5 +1,7 @@
 import sys
 import rospy
+from copy import copy
+from pyquaternion import Quaternion
 from sensor_msgs.msg import PointCloud2
 from sensor_msgs import point_cloud2
 from vision_msgs.msg import Detection3DArray, Detection3D, ObjectHypothesisWithPose, BoundingBox3D
@@ -137,22 +139,8 @@ class RosInference3D(BaseInference):
         self.publisher = rospy.Publisher(self.channel.params['pub_topic'], Detection3DArray, queue_size=10)
         rospy.spin()
 
-    def _scale_boxes(self, box, normalized=False):
-        '''
-        box: Bounding box generated for the image size (e.g. 512 x 512) expected by the model at triton server
-        return: Scaled bounding box according to the input image from the ros topic.
-        '''
-        if normalized:
-            # TODO make it dynamic with mc.Modelshape according to CHW or HWC
-            xtl, xbr = box[0] * self.orig_size[1], box[2] * self.orig_size[1]
-            ytl, ybr = box[1] * self.orig_size[0], box[3] * self.orig_size[0]
-        else:
-            xtl, xbr = box[0] * (self.orig_size[1] / self.input_size[0]), \
-                       box[2] * (self.orig_size[1] / self.input_size[0])
-            ytl, ybr = box[1] * self.orig_size[0] / self.input_size[1], \
-                       box[3] * self.orig_size[0] / self.input_size[1]
-
-        return [xtl, ytl, xbr, ybr]
+    def yaw2quaternion(self, yaw: float) -> Quaternion:
+        return Quaternion(axis=[0,0,1], radians=yaw)
 
     def _pc_callback(self, msg):
         # self.pc = ros_numpy.point_cloud2.pointcloud2_to_xyz_array(msg)
@@ -189,32 +177,35 @@ class RosInference3D(BaseInference):
         self.channel.response = self.channel.do_inference() # perform the channel Inference
         self.output = self.client_postprocess.extract_boxes(self.channel.response)
 
-        # V.draw_scenes(
-        #         points=self.pc['points'][:, 1:], 
-        #         ref_boxes=self.output[0],
-        #         ref_scores=self.output[1], 
-        #         ref_labels=self.output[2]
-        #     )
         detection_array = Detection3DArray()
-        bbox3D = BoundingBox3D()
-        detection = Detection3D()
-        object_hypothesis = ObjectHypothesisWithPose()
-        dummy_pose = PoseWithCovariance()
-        
-        box_array = self.output[0].cpu().numpy()
-        for idx in range(box_array.shape[0]):
+        box_array = self.output['boxes3d_lidar']
+        scores = self.output['scores']
+        labels = self.output['labels']
+        indices = np.where(scores > 0.4)[0].tolist()
+        for idx in indices:
+            detection = Detection3D()
+            bbox3D = BoundingBox3D()
+            object_hypothesis = ObjectHypothesisWithPose()
             bbox3D.center.position.x = box_array[idx, 0]
             bbox3D.center.position.y = box_array[idx, 1]
-            bbox3D.center.position.z = box_array[idx,2]
-            # bbox3D.center.orientation
-            bbox3D.size.x = box_array[idx, 3]
-            bbox3D.size.y = box_array[idx, 4]
+            bbox3D.center.position.z = box_array[idx, 2]
+            q = self.yaw2quaternion(float(box_array[idx, 8]))
+            bbox3D.center.orientation.w = q[0]
+            bbox3D.center.orientation.x = q[1]
+            bbox3D.center.orientation.y = q[2]
+            bbox3D.center.orientation.z = q[3]
+            bbox3D.size.x = box_array[idx, 4]
+            bbox3D.size.y = box_array[idx, 3]
             bbox3D.size.z = box_array[idx, 5] 
-            object_hypothesis.id = self.output[2].cpu()[idx]
-            object_hypothesis.score = self.output[1].cpu()[idx]
-            # TODO Calculate pose and where to put the pose? ObjectHypothesis or Detection3D. 
+            object_hypothesis.score = copy(scores[idx])
+            object_hypothesis.id = copy(labels[idx])
             detection.bbox = bbox3D
+            bbox3D = None   #Flush 
+            detection.header = msg.header
             detection.results.append(object_hypothesis)
+            object_hypothesis = None # Flush
             detection_array.detections.append(detection)
-        detection_array.header.stamp = rospy.Time.now()
+            detection = None    #Flush
+        # detection_array.header.stamp = rospy.Time.now()
+        detection_array.header = msg.header
         self.publisher.publish(detection_array)
