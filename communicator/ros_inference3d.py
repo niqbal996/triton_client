@@ -1,10 +1,14 @@
 import sys
+import time
 import rospy
 from copy import copy
 from pyquaternion import Quaternion
 from sensor_msgs.msg import PointCloud2
 from sensor_msgs import point_cloud2
-from vision_msgs.msg import Detection3DArray, Detection3D, ObjectHypothesisWithPose, BoundingBox3D
+try:
+    from jsk_recognition_msgs.msg import BoundingBox, BoundingBoxArray
+except:
+    from vision_msgs.msg import Detection3DArray, Detection3D, ObjectHypothesisWithPose, BoundingBox3D
 from geometry_msgs.msg import PoseWithCovariance
 from cv_bridge import CvBridge
 try:
@@ -37,7 +41,7 @@ class RosInference3D(BaseInference):
     A RosInference to support ROS input and provide input to channel for inference.
     """
 
-    def __init__(self, channel, client):
+    def __init__(self, channel, client, jsk=True):
         '''
             channel: channel of type communicator.channel
             client: client of type clients
@@ -53,6 +57,7 @@ class RosInference3D(BaseInference):
         self.client_postprocess = client.get_postprocess() # get postprocess of client
         self.client_preprocess = client.get_preprocess()
         self.class_names = self.client_postprocess.load_class_names()
+        self.jsk = jsk
 
     def _register_inference(self):
         """
@@ -100,49 +105,19 @@ class RosInference3D(BaseInference):
             self.inputs['input_{}'.format(i)].shape.extend(input['shape'])
             self.channel.request.inputs.extend([self.inputs['input_{}'.format(i)]])
 
-        # self.output0 = service_pb2.ModelInferRequest().InferRequestedOutputTensor() # boxes
-        # self.output0.name = self.channel.output[0]
-        # self.output1 = service_pb2.ModelInferRequest().InferRequestedOutputTensor() # class_IDs
-        # self.output1.name = self.channel.output[1]
-        # self.output2 = service_pb2.ModelInferRequest().InferRequestedOutputTensor() # scores
-        # self.output2.name = self.channel.output[2]
-
-        # self.channel.request.outputs.extend([self.output0,
-        #                                      self.output1,
-        #                                      self.output2])
-
-        # self.input0 = service_pb2.ModelInferRequest().InferInputTensor() # voxels
-        # self.input0.name = self.channel.input[0]
-        # self.input0.datatype = self.input_types[0]
-        # tmp = 10000
-        # self.input0.shape.extend([tmp, 32, 4])
-        # self.input1 = service_pb2.ModelInferRequest().InferInputTensor() # coors
-        # self.input1.name = self.channel.input[1]
-        # self.input1.datatype = self.input_types[1]
-        # self.input1.shape.extend([tmp, 4])
-        # self.input2 = service_pb2.ModelInferRequest().InferInputTensor() # num_points
-        # self.input2.name = self.channel.input[2]
-        # self.input2.datatype = self.input_types[2]
-        # self.input2.shape.extend([tmp])
-        # self.input3 = service_pb2.ModelInferRequest().InferInputTensor() # num_points
-        # self.input3.name = self.channel.input[2]
-        # self.input3.datatype = self.input_types[2]
-        # self.input3.shape.extend([tmp])
-        # self.input4 = service_pb2.ModelInferRequest().InferInputTensor() # num_points
-        # self.input4.name = self.channel.input[2]
-        # self.input4.datatype = self.input_types[2]
-        # self.input4.shape.extend([tmp])
-        # self.channel.request.inputs.extend([self.input0, self.input1, self.input2])
-
     def start_inference(self):
-        rospy.Subscriber(self.channel.params['sub_topic'], PointCloud2, self._pc_callback)
-        self.publisher = rospy.Publisher(self.channel.params['pub_topic'], Detection3DArray, queue_size=10)
+        rospy.Subscriber(self.channel.params['sub_topic'], PointCloud2, self._pc_callback, queue_size=1)
+        if self.jsk:
+            self.publisher = rospy.Publisher(self.channel.params['pub_topic'], BoundingBoxArray, queue_size=1)
+        else:
+            self.publisher = rospy.Publisher(self.channel.params['pub_topic'], Detection3DArray, queue_size=1)
         rospy.spin()
 
     def yaw2quaternion(self, yaw: float) -> Quaternion:
         return Quaternion(axis=[0,0,1], radians=yaw)
 
     def _pc_callback(self, msg):
+        t1 = time.time()
         # self.pc = ros_numpy.point_cloud2.pointcloud2_to_xyz_array(msg)
         # TODO what is the 4th attribute of the point clouds from KITTI and what is their data range
         self.pc = np.array(list(point_cloud2.read_points(msg, field_names = ("x", "y", "z", "reflectivity"), skip_nans=True)))
@@ -176,36 +151,66 @@ class RosInference3D(BaseInference):
                                                         ])
         self.channel.response = self.channel.do_inference() # perform the channel Inference
         self.output = self.client_postprocess.extract_boxes(self.channel.response)
-
-        detection_array = Detection3DArray()
         box_array = self.output['boxes3d_lidar']
         scores = self.output['scores']
         labels = self.output['labels']
-        indices = np.where(scores > 0.4)[0].tolist()
-        for idx in indices:
-            detection = Detection3D()
-            bbox3D = BoundingBox3D()
-            object_hypothesis = ObjectHypothesisWithPose()
-            bbox3D.center.position.x = box_array[idx, 0]
-            bbox3D.center.position.y = box_array[idx, 1]
-            bbox3D.center.position.z = box_array[idx, 2]
-            q = self.yaw2quaternion(float(box_array[idx, 8]))
-            bbox3D.center.orientation.w = q[0]
-            bbox3D.center.orientation.x = q[1]
-            bbox3D.center.orientation.y = q[2]
-            bbox3D.center.orientation.z = q[3]
-            bbox3D.size.x = box_array[idx, 4]
-            bbox3D.size.y = box_array[idx, 3]
-            bbox3D.size.z = box_array[idx, 5] 
-            object_hypothesis.score = copy(scores[idx])
-            object_hypothesis.id = copy(labels[idx])
-            detection.bbox = bbox3D
-            bbox3D = None   #Flush 
-            detection.header = msg.header
-            detection.results.append(object_hypothesis)
-            object_hypothesis = None # Flush
-            detection_array.detections.append(detection)
-            detection = None    #Flush
-        # detection_array.header.stamp = rospy.Time.now()
-        detection_array.header = msg.header
+        # https://github.com/nutonomy/nuscenes-devkit/blob/master/docs/instructions_nuscenes.md
+        # [12, 13, 14, 18]:
+        # indices1 = np.where(scores > 0.5)[0].tolist()
+        indices = np.where(labels == 9)[0].tolist()
+        # print(np.unique(labels))
+        if self.jsk:
+            detection_array = BoundingBoxArray()
+            if scores.size != 0:
+                for i in indices:
+                    bbox = BoundingBox()
+                    bbox.header.frame_id = msg.header.frame_id
+                    bbox.header.stamp = rospy.Time.now()
+                    q = self.yaw2quaternion(float(box_array[i][8]))
+                    bbox.pose.orientation.x = q[1]
+                    bbox.pose.orientation.y = q[2]
+                    bbox.pose.orientation.z = q[3]
+                    bbox.pose.orientation.w = q[0]           
+                    bbox.pose.position.x = float(box_array[i][0])
+                    bbox.pose.position.y = float(box_array[i][1])
+                    bbox.pose.position.z = float(box_array[i][2])
+                    bbox.dimensions.x = float(box_array[i][4])
+                    bbox.dimensions.y = float(box_array[i][3])
+                    bbox.dimensions.z = float(box_array[i][5])
+                    bbox.value = scores[i]
+                    bbox.label = int(labels[i])
+                    detection_array.boxes.append(bbox)
+        else:
+            detection_array = Detection3DArray()
+            # for idx in indices:
+            for idx in range(len(box_array)):
+                detection = Detection3D()
+                bbox3D = BoundingBox3D()
+                object_hypothesis = ObjectHypothesisWithPose()
+                bbox3D.center.position.x = box_array[idx, 0]
+                bbox3D.center.position.y = box_array[idx, 1]
+                bbox3D.center.position.z = box_array[idx, 2]
+                q = self.yaw2quaternion(float(box_array[idx, 8]))
+                bbox3D.center.orientation.w = q[0]
+                bbox3D.center.orientation.x = q[1]
+                bbox3D.center.orientation.y = q[2]
+                bbox3D.center.orientation.z = q[3]
+                bbox3D.size.x = box_array[idx, 4]
+                bbox3D.size.y = box_array[idx, 3]
+                bbox3D.size.z = box_array[idx, 5] 
+                object_hypothesis.score = copy(scores[idx])
+                object_hypothesis.id = copy(labels[idx])
+                detection.bbox = bbox3D
+                bbox3D = None   #Flush 
+                detection.header = msg.header
+                detection.results.append(object_hypothesis)
+                object_hypothesis = None # Flush
+                detection_array.detections.append(detection)
+                detection = None    #Flush
+            # detection_array.header.stamp = rospy.Time.now()
+        detection_array.header.stamp = msg.header.stamp
+        detection_array.header.frame_id = msg.header.frame_id
+        t2 = time.time()
+        print('[INFO] Time taken {} s'.format(t2 -t1))
         self.publisher.publish(detection_array)
+        detection_array = []

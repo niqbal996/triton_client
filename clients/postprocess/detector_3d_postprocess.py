@@ -3,6 +3,7 @@ import numpy as np
 import torch
 from torch import Tensor
 from typing import Optional, Tuple
+from jsk_recognition_msgs.msg import BoundingBox, BoundingBoxArray
 # try:
 #     from mmcv.ops import nms, nms_rotated
 # except ImportError as e:
@@ -62,6 +63,37 @@ class PointPillarPostprocess(Postprocess):
                 annotation_indices.append(index)
         return annotation_indices  
 
+    # def generate_jsk_messages(self):
+    #     arr_bbox = BoundingBoxArray()
+    #     for i in range(10):
+    #             bbox = BoundingBox()
+    #             bbox.header.frame_id = msg.header.frame_id
+    #             bbox.header.stamp = rospy.Time.now()
+    #             q = yaw2quaternion(float(dt_box_lidar[i][8]))
+    #             bbox.pose.orientation.x = q[1]
+    #             bbox.pose.orientation.y = q[2]
+    #             bbox.pose.orientation.z = q[3]
+    #             bbox.pose.orientation.w = q[0]           
+    #             bbox.pose.position.x = float(dt_box_lidar[i][0])
+    #             bbox.pose.position.y = float(dt_box_lidar[i][1])
+    #             bbox.pose.position.z = float(dt_box_lidar[i][2])
+    #             bbox.dimensions.x = float(dt_box_lidar[i][4])
+    #             bbox.dimensions.y = float(dt_box_lidar[i][3])
+    #             bbox.dimensions.z = float(dt_box_lidar[i][5])
+    #             bbox.value = scores[i]
+    #             bbox.label = int(types[i])
+    #             arr_bbox.boxes.append(bbox)
+    #             print("total callback time: ", time.time() - t_t)
+    #             arr_bbox.header.frame_id = msg.header.frame_id
+    #             arr_bbox.header.stamp = msg.header.stamp
+    #             if len(arr_bbox.boxes) != 0:
+    #                 pub_arr_bbox.publish(arr_bbox)
+    #                 arr_bbox.boxes = []
+    #             else:
+    #                 arr_bbox.boxes = []
+    #                 pub_arr_bbox.publish(arr_bbox)
+
+
     # Source https://github.com/CarkusL/CenterPoint/
     def remove_low_score_nu(self, predictions, thresh):
         filtered_annotations = {}
@@ -93,9 +125,9 @@ class PointPillarPostprocess(Postprocess):
                                 barrier_indices +
                                 truck_indices
                                 ])
-        print("[INFO] Filtered {} out of {} predictions based on {} percent confidence threshold".format(
-            len(filtered_annotations['scores']), 
-            len(predictions['scores']), 
-            int(thresh*100)
-            ))
+        # print("[INFO] Filtered {} out of {} predictions based on {} percent confidence threshold".format(
+        #     len(filtered_annotations['scores']), 
+        #     len(predictions['scores']), 
+        #     int(thresh*100)
+        #     ))
         return filtered_annotations
