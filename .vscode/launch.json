@@ -18,7 +18,16 @@
             "type": "python",
             "request": "launch",
             "program": "/workspace/triton_client_yolo/main3d.py",
-            "args": ["-m", "pointpillar"],
+            "args": ["-m", "pointpillar_python"],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "BagClient",
+            "type": "python",
+            "request": "launch",
+            "program": "/workspace/triton_client_yolo/bag3d.py",
+            "args": ["-m", "pointpillar_python"],
             "console": "integratedTerminal",
             "justMyCode": true
         }

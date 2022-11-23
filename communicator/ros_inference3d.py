@@ -58,6 +58,7 @@ class RosInference3D(BaseInference):
         self.client_preprocess = client.get_preprocess()
         self.class_names = self.client_postprocess.load_class_names()
         self.jsk = jsk
+        self.count = 0
 
     def _register_inference(self):
         """
@@ -106,7 +107,7 @@ class RosInference3D(BaseInference):
             self.channel.request.inputs.extend([self.inputs['input_{}'.format(i)]])
 
     def start_inference(self):
-        rospy.Subscriber(self.channel.params['sub_topic'], PointCloud2, self._pc_callback, queue_size=1)
+        rospy.Subscriber(self.channel.params['sub_topic'], PointCloud2, self._pc_callback, queue_size=50)
         if self.jsk:
             self.publisher = rospy.Publisher(self.channel.params['pub_topic'], BoundingBoxArray, queue_size=1)
         else:
@@ -117,10 +118,14 @@ class RosInference3D(BaseInference):
         return Quaternion(axis=[0,0,1], radians=yaw)
 
     def _pc_callback(self, msg):
+        self.count += 1
         t1 = time.time()
-        # self.pc = ros_numpy.point_cloud2.pointcloud2_to_xyz_array(msg)
         # TODO what is the 4th attribute of the point clouds from KITTI and what is their data range
-        self.pc = np.array(list(point_cloud2.read_points(msg, field_names = ("x", "y", "z", "reflectivity"), skip_nans=True)))
+        self.pc = np.array(list(point_cloud2.read_points(msg, field_names = ("x", "y", "z", "intensity"), skip_nans=True)))
+        self.pc[:, 3] = self.pc[:, 3] / np.max(self.pc[:, 3])
+        self.pc[:, 2] = self.pc[:, 2] + 2.0
+        if self.count % 10 == 0:
+            np.save('{:06d}'.format(self.count), self.pc)
         self.pc = self.client_preprocess.filter_pc(self.pc)
         # the number of voxels changes every sample
         num_voxels = self.pc[0].shape[0]
@@ -156,8 +161,7 @@ class RosInference3D(BaseInference):
         labels = self.output['labels']
         # https://github.com/nutonomy/nuscenes-devkit/blob/master/docs/instructions_nuscenes.md
         # [12, 13, 14, 18]:
-        # indices1 = np.where(scores > 0.5)[0].tolist()
-        indices = np.where(labels == 9)[0].tolist()
+        indices = np.where((labels == 9) & (scores > 0.2))[0].tolist()
         # print(np.unique(labels))
         if self.jsk:
             detection_array = BoundingBoxArray()
@@ -173,7 +177,7 @@ class RosInference3D(BaseInference):
                     bbox.pose.orientation.w = q[0]           
                     bbox.pose.position.x = float(box_array[i][0])
                     bbox.pose.position.y = float(box_array[i][1])
-                    bbox.pose.position.z = float(box_array[i][2])
+                    bbox.pose.position.z = float(box_array[i][2]) - 2
                     bbox.dimensions.x = float(box_array[i][4])
                     bbox.dimensions.y = float(box_array[i][3])
                     bbox.dimensions.z = float(box_array[i][5])
@@ -211,6 +215,7 @@ class RosInference3D(BaseInference):
         detection_array.header.stamp = msg.header.stamp
         detection_array.header.frame_id = msg.header.frame_id
         t2 = time.time()
-        print('[INFO] Time taken {} s'.format(t2 -t1))
+        # print('[INFO] Time taken {} s'.format(t2 -t1))
+        # print('COUNT: {}'.format(self.count))
         self.publisher.publish(detection_array)
         detection_array = []
