@@ -26,25 +26,12 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import argparse
-# import numpy as np
-# import sys
 import rospy
 import yaml
 
-# import grpc
-# import cv2
-#
-# from tritonclient.grpc import service_pb2, service_pb2_grpc
-# import tritonclient.grpc.model_config_pb2 as mc
-#
-# from utils.preprocess import parse_model, model_dtype_to_np, requestGenerator, image_adjust
-# from utils.postprocess import extract_boxes_triton, load_class_names
-# from utils.ros_input import RealSenseNode
-
-from communicator import RosInference3D
+from communicator.bag_inference2d import RosInference
 from communicator.channel import grpc_channel
-from clients import Pointpillars_client
-
+from clients import Yolov5client, FCOS_client
 
 FLAGS = None
 
@@ -115,17 +102,19 @@ def parse_args():
 
 if __name__ == '__main__':
     FLAGS = parse_args()
-    rospy.init_node('ros_infer_3d')
+    rospy.init_node('ros_infer_2D')
     param_file = rospy.get_param('client_parameter_file', './data/client_parameter.yaml')
     with open(param_file) as file:
         param = yaml.load(file, Loader=yaml.FullLoader)
 
-    # define client
-    client = Pointpillars_client()
+    client = Yolov5client()
+    # client = FCOS_client()
 
     #define channel
     channel = grpc_channel.GRPCChannel(param, FLAGS)
 
     #define inference
-    inference = RosInference3D(channel, client)
+    inference = RosInference(channel, client, bagfile='/workspace/triton_client_yolo/after_threshing_0_deg.bag')
     inference.start_inference()
+    # evaluation = EvaluateInference(channel, client)
+    # evaluation.start_inference()

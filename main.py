@@ -115,7 +115,7 @@ def parse_args():
 
 if __name__ == '__main__':
     FLAGS = parse_args()
-    rospy.init_node('ros_infer')
+    rospy.init_node('ros_infer_2D')
     param_file = rospy.get_param('client_parameter_file', './data/client_parameter.yaml')
     with open(param_file) as file:
         param = yaml.load(file, Loader=yaml.FullLoader)
@@ -137,8 +137,8 @@ if __name__ == '__main__':
     #define inference
     inference = RosInference(channel, client)
     inference.start_inference()
-    evaluation = EvaluateInference(channel, client)
-    evaluation.start_inference()
+    # evaluation = EvaluateInference(channel, client)
+    # evaluation.start_inference()
     # # input_name, output_name, c, h, w, format, dtype = parse_model(
     # #     metadata_response, config_response.config)
     # #

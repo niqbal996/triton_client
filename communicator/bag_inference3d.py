@@ -1,4 +1,5 @@
 import sys
+import os
 import time
 import rospy
 from copy import copy
@@ -59,7 +60,7 @@ class RosInference3D(BaseInference):
         self.client_preprocess = client.get_preprocess()
         self.class_names = self.client_postprocess.load_class_names()
         self.in_bag = rosbag.Bag(bagfile, "r")
-        self.out_bag = rosbag.Bag('output.bag', 'w')
+        self.out_bag = rosbag.Bag('{}_output.bag'.format(os.path.basename(bagfile)), 'w')
         self.count = 0
         self.box_topic = rospy.Publisher(self.channel.params['pub_topic'], BoundingBoxArray, queue_size=1)
 
@@ -111,7 +112,7 @@ class RosInference3D(BaseInference):
         return Quaternion(axis=[0,0,1], radians=yaw)
 
     def start_inference(self):
-        offset = 2.5
+        offset = 1.5
         for topic, msg, t in self.in_bag.read_messages(topics=[self.channel.params['sub_topic'],
                                                             # '/tf',
                                                             # '/tf_static',
@@ -127,6 +128,10 @@ class RosInference3D(BaseInference):
                 self.pc = np.array(list(point_cloud2.read_points(msg, field_names = ("x", "y", "z", "intensity"), skip_nans=True)))
                 self.pc[:, 3] = self.pc[:, 3] / np.max(self.pc[:, 3])
                 self.pc[:, 2] = self.pc[:, 2] + offset
+                tmp0 = self.pc[:, 0]
+                tmp1 = self.pc[:, 1]
+                self.pc[:,0] = tmp1
+                self.pc[:,1] = tmp0
                 self.pc = self.client_preprocess.filter_pc(self.pc)
                 # the number of voxels changes every sample
                 num_voxels = self.pc[0].shape[0]
@@ -182,8 +187,3 @@ class RosInference3D(BaseInference):
                 self.out_bag.write(topic, msg)
                 self.out_bag.write(self.channel.params['pub_topic'], detection_array)
                 detection_array = []
-
-
-        
-        
-        

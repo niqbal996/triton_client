@@ -127,5 +127,5 @@ if __name__ == '__main__':
     channel = grpc_channel.GRPCChannel(param, FLAGS)
 
     #define inference
-    inference = RosInference3D(channel, client, bagfile='/workspace/triton_client_yolo/after_threshing_0_deg.bag')
+    inference = RosInference3D(channel, client, bagfile='/workspace/triton_client_yolo/real_person_2.bag')
     inference.start_inference()

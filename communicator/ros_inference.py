@@ -1,5 +1,5 @@
 import rospy
-from sensor_msgs.msg import Image, PointCloud2
+from sensor_msgs.msg import Image, PointCloud2, CompressedImage
 from cv_bridge import CvBridge
 try:
     import ros_numpy
@@ -33,6 +33,7 @@ class RosInference(BaseInference):
         self.topic_exists = False
         self.image = None
         self.br = CvBridge()
+        self.color = (0, 255, 0)
         self.topic_exists = False
         self._register_inference() # register inference based on type of client
         self.client_postprocess = client.get_postprocess() # get postprocess of client
@@ -48,8 +49,6 @@ class RosInference(BaseInference):
             self._set_grpc_channel_members()
         else:
             pass
-
-        self.detection = rospy.Publisher(self.channel.params['pub_topic'], Image, queue_size=10)
 
     def _set_grpc_channel_members(self):
         """
@@ -91,7 +90,8 @@ class RosInference(BaseInference):
 
     def start_inference(self):
         rospy.loginfo('Listening to Image topic: {}'.format(self.channel.params['sub_topic']))
-        rospy.Subscriber(self.channel.params['sub_topic'], Image, self._callback)
+        rospy.Subscriber(self.channel.params['sub_topic'], CompressedImage, self._callback)
+        self.detection = rospy.Publisher(self.channel.params['pub_topic'], Image, queue_size=10)
         # rospy.Subscriber(self.channel.params['sub_topic'], PointCloud2, self._pc_callback)
         rospy.spin()
 
@@ -116,7 +116,21 @@ class RosInference(BaseInference):
 
     def _callback(self, msg):
         # rospy.loginfo('Image received...')
-        cv_image = self.br.imgmsg_to_cv2(msg, desired_encoding='rgb8')
+        if 'compressed' in msg.format:
+            # cv_image = np.fromstring(msg.data, np.uint8)
+            # cv_image = cv2.imdecode(cv_image, cv2.IMREAD_COLOR)
+            # cv_image = cv2.cvtColor(cv_image, cv2.COLOR_RGB2BGR)
+            str_msg = msg.data
+            buf = np.ndarray(shape=(1, len(str_msg)), 
+                             dtype=np.uint8, 
+                             buffer=msg.data)
+            cv_image = cv2.imdecode(buf, cv2.IMREAD_ANYCOLOR)   # BGR8
+            # cv2.imshow('image', cv_image)
+            # cv2.waitKey(1)
+            # cv_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
+            cv_image = cv_image[...,::-1]
+        else:
+            cv_image = self.br.imgmsg_to_cv2(msg, desired_encoding='rgb8')
         if cv_image is not None and not self.topic_exists:
             rospy.loginfo("Topic received. Proceeding with Inference . . .")
             rospy.loginfo("Publishing detections under {}".format(self.channel.params['pub_topic']))
@@ -131,42 +145,42 @@ class RosInference(BaseInference):
             self.channel.request.inputs.extend([self.channel.input])
             self.channel.request.raw_input_contents.extend([self.image.tobytes()])
             self.channel.response = self.channel.do_inference() # perform the channel Inference
-            self.prediction = self.client_postprocess.extract_boxes(self.channel.response)
+            self.prediction = self.client_postprocess.extract_boxes(self.channel.response, conf_thres=0.3)
+            if not isinstance(self.prediction, AssertionError):
+                for object in self.prediction[0]:  # predictions array has the order [x1,y1, x2,y2, confidence,
+                                                                                    # confidence, class ID]
+                    box = np.array(object[0:4], dtype=np.float32)
+                    box = self._scale_boxes(box, normalized=False)
+                    # if int(object[5]) == 0:
+                    #     color = (0, 255, 0)
+                    # else:
+                    #     color = (255, 0, 0)
+                    cv2.rectangle(self.orig_image,
+                                pt1=(int(box[0]), int(box[1])),
+                                pt2=(int(box[2]), int(box[3])),
+                                color=self.color,
+                                thickness=2)
+                    cv2.putText(self.orig_image,
+                                '{:.2f} {}'.format(object[-2], self.class_names[int(object[-1])]),
+                                org=(int(box[0]), int(box[1] - 10 )),
+                                fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+                                fontScale=0.5,
+                                thickness=2,
+                                color=self.color)
+            # cv2.imshow('Prediction', cv2.cvtColor(self.orig_image, cv2.COLOR_RGB2BGR))
+            # cv2.waitKey(1)
 
-            for object in self.prediction[0]:  # predictions array has the order [x1,y1, x2,y2, confidence,
-                                                                                # confidence, class ID]
-                box = np.array(object[0:4], dtype=np.float32)
-                box = self._scale_boxes(box, normalized=False)
-                if int(object[5]) == 0:
-                    color = (0, 255, 0)
-                else:
-                    color = (255, 0, 0)
-                cv2.rectangle(self.orig_image,
-                              pt1=(int(box[0]), int(box[1])),
-                              pt2=(int(box[2]), int(box[3])),
-                              color=color,
-                              thickness=3)
-                # cv2.putText(self.orig_image,
-                #             '{:.2f} {}'.format(object[-2], self.class_names[int(object[-1])]),
-                #             org=(int(box[0]), int(box[1])),
-                #             fontFace=cv2.FONT_HERSHEY_SIMPLEX,
-                #             fontScale=0.5,
-                #             thickness=2,
-                #             color=(0, 255, 0))
-            # cv2.imshow('Prediction', cv2.cvtColor(self.orig_image, cv2.COLOR_RGB2BGR))
-            # cv2.imshow('Prediction', cv2.cvtColor(self.orig_image, cv2.COLOR_RGB2BGR))
-            # cv2.waitKey()
             self.msg_frame = self.br.cv2_to_imgmsg(self.orig_image, encoding="rgb8")
-            self.msg_frame.header.stamp = rospy.Time.now()
+            self.msg_frame.header = msg.header 
             self.detection.publish(self.msg_frame)
 
 
-    def _pc_callback(self, msg):
-        self.pc = ros_numpy.point_cloud2.pointcloud2_to_xyz_array(msg)
-        self.pc = self.client_preprocess.filter_pc(self.pc)
-        self.channel.request.ClearField("inputs")
-        self.channel.request.ClearField("raw_input_contents")  # Flush the previous image contents
-        # TODO these are dummy requests, should implement the model on the server side first.
-        self.channel.request.inputs.extend([self.channel.input])
-        self.channel.request.raw_input_contents.extend([self.pc.tobytes()])
-        self.channel.response = self.channel.do_inference() # perform the channel Inference
+    # def _pc_callback(self, msg):
+    #     self.pc = ros_numpy.point_cloud2.pointcloud2_to_xyz_array(msg)
+    #     self.pc = self.client_preprocess.filter_pc(self.pc)
+    #     self.channel.request.ClearField("inputs")
+    #     self.channel.request.ClearField("raw_input_contents")  # Flush the previous image contents
+    #     # TODO these are dummy requests, should implement the model on the server side first.
+    #     self.channel.request.inputs.extend([self.channel.input])
+    #     self.channel.request.raw_input_contents.extend([self.pc.tobytes()])
+    #     self.channel.response = self.channel.do_inference() # perform the channel Inference
