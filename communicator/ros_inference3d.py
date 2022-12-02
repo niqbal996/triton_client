@@ -11,12 +11,12 @@ except:
     from vision_msgs.msg import Detection3DArray, Detection3D, ObjectHypothesisWithPose, BoundingBox3D
 from geometry_msgs.msg import PoseWithCovariance
 from cv_bridge import CvBridge
+# try:
+#     import ros_numpy
+# except Exception as E:
+#     print('[WARNING] {}'.format(E))
 try:
-    import ros_numpy
-except Exception as E:
-    print('[WARNING] {}'.format(E))
-try:
-    # import open3d
+    import open3d
     from clients.postprocess import visualize_open3d as V
 except Exception as E:
     print('[WARNING] {}'.format(E))
@@ -120,12 +120,18 @@ class RosInference3D(BaseInference):
     def _pc_callback(self, msg):
         self.count += 1
         t1 = time.time()
+        offset = 1.5
         # TODO what is the 4th attribute of the point clouds from KITTI and what is their data range
         self.pc = np.array(list(point_cloud2.read_points(msg, field_names = ("x", "y", "z", "intensity"), skip_nans=True)))
-        self.pc[:, 3] = self.pc[:, 3] / np.max(self.pc[:, 3])
-        self.pc[:, 2] = self.pc[:, 2] + 2.0
-        if self.count % 10 == 0:
-            np.save('{:06d}'.format(self.count), self.pc)
+        # self.pc[:, 3] = self.pc[:, 3] / np.max(self.pc[:, 3])
+        # tmp = np.where(self.pc[:, 2] != 0)[0]
+        # self.pc[tmp, 2] = self.pc[tmp, 2] - 1.5
+        # tmp0 = self.pc[:, 0]
+        # tmp1 = self.pc[:, 1]
+        # self.pc[:,0] = tmp1
+        # self.pc[:,1] = tmp0
+        # if self.count % 10 == 0:
+        #     np.save('{:06d}'.format(self.count), self.pc)
         self.pc = self.client_preprocess.filter_pc(self.pc)
         # the number of voxels changes every sample
         num_voxels = self.pc[0].shape[0]
@@ -137,14 +143,6 @@ class RosInference3D(BaseInference):
             self.channel.request.inputs[idx].ClearField("shape")
             self.channel.request.inputs[idx].shape.extend(tmp_shape)
             self.inputs[key].shape.extend(tmp_shape)
-
-        # self.input0.ClearField("shape")
-        # self.input1.ClearField("shape")
-        # self.input2.ClearField("shape")
-        # self.input0.shape.extend([num_voxels, 32, 4])
-        # self.input1.shape.extend([num_voxels, 4])
-        # self.input2.shape.extend([num_voxels])
-        # self.channel.request.ClearField("inputs")
         
         # Make sure the data types are correct for each input before sending them as bytes, this causes wrong array values on the server 
         assert self.pc[0].dtype.name == self.dtypes[self.inputs['input_0'].datatype]
@@ -159,8 +157,7 @@ class RosInference3D(BaseInference):
         box_array = self.output['boxes3d_lidar']
         scores = self.output['scores']
         labels = self.output['labels']
-        # https://github.com/nutonomy/nuscenes-devkit/blob/master/docs/instructions_nuscenes.md
-        # [12, 13, 14, 18]:
+        # class ID 9 corresponds to pedestrians 
         indices = np.where((labels == 9) & (scores > 0.2))[0].tolist()
         # print(np.unique(labels))
         if self.jsk:
@@ -177,7 +174,7 @@ class RosInference3D(BaseInference):
                     bbox.pose.orientation.w = q[0]           
                     bbox.pose.position.x = float(box_array[i][0])
                     bbox.pose.position.y = float(box_array[i][1])
-                    bbox.pose.position.z = float(box_array[i][2]) - 2
+                    bbox.pose.position.z = float(box_array[i][2]) - offset
                     bbox.dimensions.x = float(box_array[i][4])
                     bbox.dimensions.y = float(box_array[i][3])
                     bbox.dimensions.z = float(box_array[i][5])
@@ -216,6 +213,6 @@ class RosInference3D(BaseInference):
         detection_array.header.frame_id = msg.header.frame_id
         t2 = time.time()
         # print('[INFO] Time taken {} s'.format(t2 -t1))
-        # print('COUNT: {}'.format(self.count))
+        print('COUNT: {}'.format(self.count))
         self.publisher.publish(detection_array)
         detection_array = []
