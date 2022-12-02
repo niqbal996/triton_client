@@ -115,6 +115,11 @@ class EvaluateInference(BaseInference):
         rospy.loginfo("Reading data from source: " + source)
         if source == "rosmsg":
             self.inference_topic = rospy.Subscriber(self.channel.params['sub_topic'], Image, self.image_callback)
+            self.gt_topic = rospy.Subscriber(self.channel.params['gt_topic'], Detection2DArray, self.gt_callback)
+            rospy.loginfo('Waiting until all the Rosbag messages are processed . . .')
+            time.sleep(20)  # TODO wait until the inference is done, NO HARDCODING!
+            statistics = self.calculate_metrics()
+
         elif source == "seerepfb":
             schan = seerep_channel.SEEREPChannel()
             #ts = schan.gen_timestamp(1610549273, 1938549273)
@@ -141,14 +146,6 @@ class EvaluateInference(BaseInference):
 
                 schan.sendboundingbox(bbs, labels)
                 rospy.loginfo("Transfered to SEEREP")
-
-            # exit function
-            return
-
-        self.gt_topic = rospy.Subscriber(self.channel.params['gt_topic'], Detection2DArray, self.gt_callback)
-        rospy.loginfo('Waiting until all the Rosbag messages are processed . . .')
-        time.sleep(20)  # TODO wait until the inference is done, NO HARDCODING!
-        statistics = self.calculate_metrics()
 
         rospy.loginfo('Sending Metrics to Prometheus')
 
