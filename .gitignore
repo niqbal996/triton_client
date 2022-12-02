@@ -2,3 +2,5 @@
 **/__pycache__/
 weights/**
 **.npy
+examples/pointpillar_kitti/1/pointpillar_kitti.pth
+examples/second_iou/1/second_iou_kitti.pth

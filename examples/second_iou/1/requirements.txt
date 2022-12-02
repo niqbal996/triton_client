@@ -1,0 +1,4 @@
+# pcdet
+numpy==1.23.5
+SharedArray
+apt-get update && apt-get install libgl1
