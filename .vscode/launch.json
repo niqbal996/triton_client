@@ -9,7 +9,7 @@
             "type": "python",
             "request": "launch",
             "program": "/workspace/triton_client_yolo/main.py",
-            "args": ["-m", "YOLOv5nCROP"],
+            "args": ["-m", "YOLOv5nCOCO"],
             "console": "integratedTerminal",
             "justMyCode": true
         },
@@ -18,16 +18,31 @@
             "type": "python",
             "request": "launch",
             "program": "/workspace/triton_client_yolo/main3d.py",
-            "args": ["-m", "pointpillar_python"],
+            "args": [
+                // "-m", "pointpillar_kitti",
+                "-m", "second_iou"
+            ],
             "console": "integratedTerminal",
             "justMyCode": true
         },
         {
-            "name": "BagClient",
+            "name": "BagClient 3D",
             "type": "python",
             "request": "launch",
             "program": "/workspace/triton_client_yolo/bag3d.py",
-            "args": ["-m", "pointpillar_python"],
+            "args": [
+                // "-m", "pointpillar_python",
+                "-m", "second_iou"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "BagClient 2D",
+            "type": "python",
+            "request": "launch",
+            "program": "/workspace/triton_client_yolo/bag2d.py",
+            "args": ["-m", "YOLOv5nCOCO"],
             "console": "integratedTerminal",
             "justMyCode": true
         }
