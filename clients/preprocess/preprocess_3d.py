@@ -46,5 +46,7 @@ class PointpillarPreprocess(Preprocess):
         data_dict = self.data_processor.forward(
             data_dict=data_dict
         )
+        # collate batch 
+        data_dict['voxel_coords'] = np.pad(data_dict['voxel_coords'], ((0, 0), (1, 0)), mode='constant', constant_values=0)
 
         return data_dict

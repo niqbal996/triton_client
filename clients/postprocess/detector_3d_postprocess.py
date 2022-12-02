@@ -43,11 +43,11 @@ class PointPillarPostprocess(Postprocess):
         self.labels = self.deserialize_bytes_int(prediction.raw_output_contents[2])
         self.labels = np.reshape(self.labels, prediction.outputs[2].shape)
 
-        self.output = {'boxes3d_lidar': self.boxes,
-                       'scores': self.scores,
-                       'labels': self.labels
+        self.output = {'pred_boxes': self.boxes,
+                       'pred_scores': self.scores,
+                       'pred_labels': self.labels
                         }
-        self.output = self.remove_low_score_nu(self.output, 0.45)
+        # self.output = self.remove_low_score_nu(self.output, 0.45)
 
         return self.output
 

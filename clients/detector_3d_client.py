@@ -2,6 +2,7 @@ import tritonclient.grpc.model_config_pb2 as mc
 
 from .base_client import Client
 from .preprocess import det3DPreprocess
+from .preprocess.preprocess_3d import PointpillarPreprocess
 from .postprocess import PointPillarPostprocess
 
 class Pointpillars_client(Client):
@@ -18,7 +19,8 @@ class Pointpillars_client(Client):
         self._clients[clienttype] = client
 
     def get_preprocess(self):
-        return det3DPreprocess()
+        # return det3DPreprocess()
+        return PointpillarPreprocess()
 
     def get_postprocess(self):
         return PointPillarPostprocess()

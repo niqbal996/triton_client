@@ -123,19 +123,13 @@ class RosInference3D(BaseInference):
         offset = 1.5
         # TODO what is the 4th attribute of the point clouds from KITTI and what is their data range
         self.pc = np.array(list(point_cloud2.read_points(msg, field_names = ("x", "y", "z", "intensity"), skip_nans=True)))
-        # self.pc[:, 3] = self.pc[:, 3] / np.max(self.pc[:, 3])
-        # tmp = np.where(self.pc[:, 2] != 0)[0]
-        # self.pc[tmp, 2] = self.pc[tmp, 2] - 1.5
-        # tmp0 = self.pc[:, 0]
-        # tmp1 = self.pc[:, 1]
-        # self.pc[:,0] = tmp1
-        # self.pc[:,1] = tmp0
-        # if self.count % 10 == 0:
-        #     np.save('{:06d}'.format(self.count), self.pc)
+        
+        self.pc[:, 3] = self.pc[:, 3] / np.max(self.pc[:, 3])
+        self.pc[:, 2] = self.pc[:, 2] + offset
         self.pc = self.client_preprocess.filter_pc(self.pc)
         # the number of voxels changes every sample
-        num_voxels = self.pc[0].shape[0]
-        self.channel.request.ClearField("raw_input_contents")  # Flush the previous image content
+        num_voxels = self.pc['voxels'].shape[0]
+        self.channel.request.ClearField("raw_input_contents")  # Flush the previous sample content
         for key, idx in zip(self.inputs, range(len(self.inputs))):
             tmp_shape = self.inputs[key].shape
             self.inputs[key].ClearField("shape")
@@ -145,20 +139,21 @@ class RosInference3D(BaseInference):
             self.inputs[key].shape.extend(tmp_shape)
         
         # Make sure the data types are correct for each input before sending them as bytes, this causes wrong array values on the server 
-        assert self.pc[0].dtype.name == self.dtypes[self.inputs['input_0'].datatype]
-        assert self.pc[1].dtype.name == self.dtypes[self.inputs['input_1'].datatype]
-        assert self.pc[2].dtype.name == self.dtypes[self.inputs['input_2'].datatype]
-        self.channel.request.raw_input_contents.extend([self.pc[0].tobytes(),
-                                                        self.pc[1].tobytes(),
-                                                        self.pc[2].tobytes(),
+        assert self.pc['voxels'].dtype.name == self.dtypes[self.inputs['input_0'].datatype]
+        assert self.pc['voxel_coords'].dtype.name == self.dtypes[self.inputs['input_1'].datatype]
+        assert self.pc['voxel_num_points'].dtype.name == self.dtypes[self.inputs['input_2'].datatype]
+        self.channel.request.raw_input_contents.extend([self.pc['voxels'].tobytes(),
+                                                        self.pc['voxel_coords'].tobytes(),
+                                                        self.pc['voxel_num_points'].tobytes(),
                                                         ])
         self.channel.response = self.channel.do_inference() # perform the channel Inference
         self.output = self.client_postprocess.extract_boxes(self.channel.response)
-        box_array = self.output['boxes3d_lidar']
-        scores = self.output['scores']
-        labels = self.output['labels']
-        # class ID 9 corresponds to pedestrians 
-        indices = np.where((labels == 9) & (scores > 0.2))[0].tolist()
+        box_array = self.output['pred_boxes']
+        scores = self.output['pred_scores']
+        labels = self.output['pred_labels']
+        # class ID 2 corresponds to pedestrians 
+        # indices = np.where((labels == 2) & (scores > 0.2))[0].tolist()
+        indices = np.where((labels == 2) & (scores > 0.5))[0].tolist()
         # print(np.unique(labels))
         if self.jsk:
             detection_array = BoundingBoxArray()
@@ -167,7 +162,7 @@ class RosInference3D(BaseInference):
                     bbox = BoundingBox()
                     bbox.header.frame_id = msg.header.frame_id
                     bbox.header.stamp = rospy.Time.now()
-                    q = self.yaw2quaternion(float(box_array[i][8]))
+                    q = self.yaw2quaternion(float(box_array[i][6]))
                     bbox.pose.orientation.x = q[1]
                     bbox.pose.orientation.y = q[2]
                     bbox.pose.orientation.z = q[3]
@@ -213,6 +208,6 @@ class RosInference3D(BaseInference):
         detection_array.header.frame_id = msg.header.frame_id
         t2 = time.time()
         # print('[INFO] Time taken {} s'.format(t2 -t1))
-        print('COUNT: {}'.format(self.count))
+        # print('COUNT: {}'.format(self.count))
         self.publisher.publish(detection_array)
         detection_array = []
