@@ -129,19 +129,20 @@ class EvaluateInference(BaseInference):
                 pred = self.seerep_infer(img)
 
                 bbs = []
+                labels = []
 
                 # traverse the perdictions for the current image
                 for p in pred:
                     start_cord, end_cord = (p[0], p[1]), (p[2]-p[0], p[3]-p[1])
+                    label = self.class_names[int(p[-1])]
 
                     bbs.append( (start_cord, end_cord) )
+                    labels.append(label)
 
-                schan.sendboundingbox(bbs)
+                schan.sendboundingbox(bbs, labels)
                 rospy.loginfo("Transfered to SEEREP")
 
-                break
-
-            # transmit the bb2dls to seerep
+            # exit function
             return
 
         self.gt_topic = rospy.Subscriber(self.channel.params['gt_topic'], Detection2DArray, self.gt_callback)

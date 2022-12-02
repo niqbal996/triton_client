@@ -38,7 +38,7 @@ class SEEREPChannel():
         self._projectid = None
         self._msguuid = None
         self.socket = 'localhost:9090'
-        self.projname = 'sendbbproj'
+        self.projname = 'simulatedDataWithInstances'
 
         # register and initialise the stub
         self.channel = self.make_channel()
@@ -328,7 +328,7 @@ class SEEREPChannel():
             break
         return images
 
-    def sendboundingbox(self, bbs):
+    def sendboundingbox(self, bbs, labels):
         header = util_fb.createHeader(
             self._builder,
             projectUuid = self._projectid,
@@ -342,7 +342,7 @@ class SEEREPChannel():
         )
         labelWithInstances = util_fb.createLabelsWithInstance(
             self._builder,
-            ["BoundingBoxLabel" + str(i) for i in range(len(bbs))],
+            [label for label in labels],
             [str(uuid.uuid4()) for _ in range(len(bbs))],
         )
         labelsBb = util_fb.createBoundingBoxes2dLabeled(self._builder, labelWithInstances, boundingBoxes)
