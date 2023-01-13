@@ -111,7 +111,7 @@ class EvaluateInference(BaseInference):
         # self.channel.output.name = output_name[0]
         # self.channel.request.outputs.extend([self.channel.output])
 
-    def start_inference(self, source):
+    def start_inference(self, source, model_name):
         rospy.loginfo("Reading data from source: " + source)
         if source == "rosmsg":
             self.inference_topic = rospy.Subscriber(self.channel.params['sub_topic'], Image, self.image_callback)
@@ -144,7 +144,7 @@ class EvaluateInference(BaseInference):
                     bbs.append( (start_cord, end_cord) )
                     labels.append(label)
 
-                schan.sendboundingbox(bbs, labels)
+                schan.sendboundingbox(bbs, labels, model_name)
                 rospy.loginfo("Transfered to SEEREP")
 
         rospy.loginfo('Sending Metrics to Prometheus')

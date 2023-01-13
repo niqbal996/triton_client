@@ -2,13 +2,14 @@ import sys
 
 from fb import (
     Boundingbox,
-    Boundingbox2D,
     BoundingBox2DLabeled,
+    BoundingBox2DLabeledWithCategory,
     BoundingBoxes2DLabeledStamped,
     BoundingBoxLabeled,
     BoundingboxStamped,
     Empty,
     Header,
+    LabelsWithCategory,
     LabelWithInstance,
     Point,
     PointCloud2,
@@ -17,8 +18,10 @@ from fb import (
     ProjectInfo,
     ProjectInfos,
     Query,
+    QueryInstance,
     TimeInterval,
     Timestamp,
+    TransformStampedQuery,
 )
 from fb import meta_operations_grpc_fb as metaOperations
 
@@ -135,6 +138,30 @@ def createLabelWithInstance(builder, label, instanceUuid):
     return LabelWithInstance.End(builder)
 
 
+# category: list of categories
+# labels: list of list of labels (as fb-String msg) per category
+def createLabelWithCategory(builder, category, labels):
+    '''Creates the message representing the labels of a catogory'''
+    LabelsCategories = []
+    for iCategory in range(len(category)):
+        categoryStr = builder.CreateString(category[iCategory])
+
+        LabelsWithCategory.StartLabelsVector(builder, len(labels[iCategory]))
+        for label in reversed(labels[iCategory]):
+            builder.PrependUOffsetTRelative(label)
+        labelsOffset = builder.EndVector()
+
+        LabelsWithCategory.Start(builder)
+        LabelsWithCategory.AddCategory(builder, categoryStr)
+        LabelsWithCategory.AddLabels(builder, labelsOffset)
+        LabelsCategories.append(LabelsWithCategory.End(builder))
+
+    Query.StartLabelVector(builder, len(LabelsCategories))
+    for LabelCategory in reversed(LabelsCategories):
+        builder.PrependUOffsetTRelative(LabelCategory)
+    return builder.EndVector()
+
+
 def createLabelsWithInstance(builder, labels, instanceUuids):
     '''Creates multiple general labels'''
     assert len(labels) == len(instanceUuids)
@@ -185,12 +212,29 @@ def createBoundingBoxes2dLabeled(builder, instances, boundingBoxes):
     return boundingBoxes2dLabeled
 
 
-def createBoundingBox2dLabeledStamped(builder, header, boundingBox2dLabeledVector):
+def createBoundingBox2dLabeledStamped(builder, header, labelsBb):
     '''Creates a labeled bounding box 2d in flatbuffers'''
+    BoundingBoxes2DLabeledStamped.StartLabelsBbVector(builder, len(labelsBb))
+    for labelBb in reversed(labelsBb):
+        builder.PrependUOffsetTRelative(labelBb)
+    labelsBbVector = builder.EndVector()
+
     BoundingBoxes2DLabeledStamped.Start(builder)
     BoundingBoxes2DLabeledStamped.AddHeader(builder, header)
-    BoundingBoxes2DLabeledStamped.AddLabelsBb(builder, boundingBox2dLabeledVector)
+    BoundingBoxes2DLabeledStamped.AddLabelsBb(builder, labelsBbVector)
     return BoundingBoxes2DLabeledStamped.End(builder)
+
+
+def createBoundingBox2DLabeledWithCategory(builder, category, bb2dLabeled):
+    BoundingBox2DLabeledWithCategory.StartBoundingBox2dLabeledVector(builder, len(bb2dLabeled))
+    for labelBb in reversed(bb2dLabeled):
+        builder.PrependUOffsetTRelative(labelBb)
+    labelsBbVector = builder.EndVector()
+
+    BoundingBox2DLabeledWithCategory.Start(builder)
+    BoundingBox2DLabeledWithCategory.AddCategory(builder, category)
+    BoundingBox2DLabeledWithCategory.AddBoundingBox2dLabeled(builder, labelsBbVector)
+    return BoundingBox2DLabeledWithCategory.End(builder)
 
 
 def createPoint(builder, x, y, z):
@@ -212,9 +256,10 @@ def createBoundingBox(builder, pointMin, pointMax):
 
 def createBoundingBoxStamped(builder, header, pointMin, pointMax):
     '''Creates a stamped 3D bounding box in flatbuffers'''
+    boundingBox = createBoundingBox(builder, pointMin, pointMax)
     BoundingboxStamped.Start(builder)
     BoundingboxStamped.AddHeader(builder, header)
-    BoundingboxStamped.AddBoundingbox(builder, createBoundingBox(builder, pointMin, pointMax))
+    BoundingboxStamped.AddBoundingbox(builder, boundingBox)
     return BoundingboxStamped.End(builder)
 
 
@@ -275,6 +320,7 @@ def createQuery(
     boundingBox=None,
     timeInterval=None,
     labels=None,
+    mustHaveAllLabels=False,
     projectUuids=None,
     instanceUuids=None,
     dataUuids=None,
@@ -288,12 +334,6 @@ def createQuery(
         for projectUuid in reversed(projectUuids):
             builder.PrependUOffsetTRelative(projectUuid)
         projectUuidsOffset = builder.EndVector()
-
-    if labels:
-        Query.StartLabelVector(builder, len(labels))
-        for label in reversed(labels):
-            builder.PrependUOffsetTRelative(label)
-        labelsOffset = builder.EndVector()
 
     if instanceUuids:
         Query.StartInstanceuuidVector(builder, len(instanceUuids))
@@ -313,16 +353,27 @@ def createQuery(
     if timeInterval:
         Query.AddTimeinterval(builder, timeInterval)
     if labels:
-        Query.AddLabel(builder, labelsOffset)
+        Query.AddLabel(builder, labels)
+    # no if; has default value
+    Query.AddMustHaveAllLabels(builder, mustHaveAllLabels)
     if projectUuids:
         Query.AddProjectuuid(builder, projectUuidsOffset)
     if instanceUuids:
         Query.AddInstanceuuid(builder, instanceOffset)
     if dataUuids:
         Query.QueryAddDatauuid(builder, dataUuidOffset)
+    # no if; has default value
     Query.AddWithoutdata(builder, withoutData)
 
     return Query.End(builder)
+
+
+def createQueryInstance(builder, query, datatype):
+    '''Create a query for instances'''
+    QueryInstance.Start(builder)
+    QueryInstance.AddDatatype(builder, datatype)
+    QueryInstance.AddQuery(builder, query)
+    return QueryInstance.End(builder)
 
 
 def createTimeInterval(builder, timeMin, timeMax):
@@ -331,3 +382,10 @@ def createTimeInterval(builder, timeMin, timeMax):
     TimeInterval.AddTimeMin(builder, timeMin)
     TimeInterval.AddTimeMax(builder, timeMax)
     return TimeInterval.End(builder)
+
+
+def createTransformStampedQuery(builder, header, childFrameId):
+    TransformStampedQuery.Start(builder)
+    TransformStampedQuery.AddHeader(builder, header)
+    TransformStampedQuery.AddChildFrameId(builder, childFrameId)
+    return TransformStampedQuery.End(builder)

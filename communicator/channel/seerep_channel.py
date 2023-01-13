@@ -38,7 +38,7 @@ class SEEREPChannel():
         self._projectid = None
         self._msguuid = None
         self.socket = 'localhost:9090'
-        self.projname = 'simulatedDataWithInstances'
+        self.projname = 'testproject'
 
         # register and initialise the stub
         self.channel = self.make_channel()
@@ -154,6 +154,9 @@ class SEEREPChannel():
                 projectuuid = response.Projects(i).Uuid().decode("utf-8")
                 print("[FOUND PROJ] ", projectuuid)
                 break
+
+            # if no project was found
+            raise Exception("No project by the provided name was found.")
 
         return projectuuid
 
@@ -305,7 +308,7 @@ class SEEREPChannel():
 
             images.append(np.reshape(response.DataAsNumpy(), (response.Height(), response.Width(), 3)))
 
-            #''' Uncomment to visualize images and display them
+            #''' Uncomment to visualize images
             #import matplotlib.pyplot as plt
             #plt.imshow(np.reshape(response.DataAsNumpy(), (response.Height(), response.Width(), 3)))
             #plt.show()
@@ -328,7 +331,7 @@ class SEEREPChannel():
             break
         return images
 
-    def sendboundingbox(self, bbs, labels):
+    def sendboundingbox(self, bbs, labels, model_name):
         header = util_fb.createHeader(
             self._builder,
             projectUuid = self._projectid,
@@ -347,12 +350,11 @@ class SEEREPChannel():
         )
         labelsBb = util_fb.createBoundingBoxes2dLabeled(self._builder, labelWithInstances, boundingBoxes)
 
-        BoundingBoxes2DLabeledStamped.StartLabelsBbVector(self._builder, len(labelsBb))
-        for labelBb in reversed(labelsBb):
-            self._builder.PrependUOffsetTRelative(labelBb)
-        labelsBbVector = self._builder.EndVector()
+        boundingBox2DLabeledWithCategory = util_fb.createBoundingBox2DLabeledWithCategory(
+            self._builder, self._builder.CreateString(model_name), labelsBb
+        )
 
-        labelsBbVector = util_fb.createBoundingBox2dLabeledStamped(self._builder, header, labelsBbVector)
+        labelsBbVector = util_fb.createBoundingBox2dLabeledStamped(self._builder, header, [boundingBox2DLabeledWithCategory])
         self._builder.Finish(labelsBbVector)
         buf = self._builder.Output()
 
