@@ -1,0 +1,18 @@
+ARG BASE_IMAGE=nvcr.io/nvidia/tritonserver:22.04-py3
+FROM ${BASE_IMAGE} as tritonserver
+
+USER root
+# Installing boost and spconv 
+RUN mkdir -p /opt/dependencies 
+COPY ./docker/server_3d/ /opt/dependencies
+WORKDIR /opt/dependencies
+RUN --mount=type=cache,target=/root/.cache/pip \
+    --mount=target=/var/lib/apt/lists,type=cache,sharing=locked \
+    --mount=target=/var/cache/apt,type=cache,sharing=locked \ 
+    /opt/dependencies/install_spconv.sh
+
+# install Det3d 
+RUN ln -sf /usr/local/cuda /usr/local/cuda-11.6 && \
+    git clone https://github.com/poodarchu/Det3D.git && \
+    cp requirements_det.txt /opt/dependencies/Det3D/requirements.txt && \ 
+    cd Det3D && python3 setup.py build develop

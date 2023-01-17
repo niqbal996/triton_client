@@ -1,0 +1,3 @@
+cython 
+spconv-cu113 
+torch==1.8.1 
