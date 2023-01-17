@@ -9,6 +9,5 @@ WORKDIR /opt/dependencies
 RUN /opt/dependencies/install_spconv.sh
 
 # install Det3d 
-RUN git clone https://github.com/poodarchu/Det3D.git && \
-    cp requirements_det.txt ./Det3D/requirements.txt && \ 
-    cd Det3D && python3 setup.py build develop
+RUN python3 -m pip install det3d-1.0rc0+01258d8-cp38-cp38-linux_x86_64.whl
+WORKDIR /opt/tritonserver/
