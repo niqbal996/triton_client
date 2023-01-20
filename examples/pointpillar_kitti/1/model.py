@@ -90,8 +90,8 @@ class TritonPythonModel:
 
     def init_model(self):
         self.logger = common_utils.create_logger()
-        self.config_path = 'pointpillar_kitti/1/pointpillar.yaml'
-        self.model_path = 'pointpillar_kitti/1/pointpillar_kitti.pth'
+        self.config_path = '/opt/model_repo/pointpillar_kitti/1/pointpillar.yaml'
+        self.model_path = '/opt/model_repo/pointpillar_kitti/1/pointpillar_kitti.pth'
         self.cfg = cfg_from_yaml_file(self.config_path, cfg)
         # self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.device = torch.device("cpu")
