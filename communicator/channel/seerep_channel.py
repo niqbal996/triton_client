@@ -29,7 +29,7 @@ class SEEREPChannel():
     """
 
     #def __init__(self,params,FLAGS):
-    def __init__(self):
+    def __init__(self, project_name='testproject', socket='agrigaia-ur.ni.dfki:9090'):
         #super().__init__(params,FLAGS)
         self._meta_data = {}
         self._grpc_stub = None
@@ -37,11 +37,11 @@ class SEEREPChannel():
         self._builder = None
         self._projectid = None
         self._msguuid = None
-        self.socket = 'localhost:9090'
-        self.projname = 'testproject'
+        self.socket = socket
+        self.projname = project_name
 
         # register and initialise the stub
-        self.channel = self.make_channel()
+        self.channel = self.make_channel(secure=False)
         self.register_channel()
         #self.register_channel(socket='seerep.robot.10.249.3.13.nip.io:31723', projname='simulatedDataWithInstances')
         #self.register_channel(socket='agrigaia-ur.ni.dfki:31723', projname='simulatedDataWithInstances')
@@ -308,26 +308,33 @@ class SEEREPChannel():
 
             images.append(np.reshape(response.DataAsNumpy(), (response.Height(), response.Width(), 3)))
 
-            #''' Uncomment to visualize images
-            #import matplotlib.pyplot as plt
-            #plt.imshow(np.reshape(response.DataAsNumpy(), (response.Height(), response.Width(), 3)))
-            #plt.show()
+            # Uncomment to visualize images
+            # import matplotlib.pyplot as plt
+            # plt.imshow(np.reshape(response.DataAsNumpy(), (response.Height(), response.Width(), 3)))
+            # plt.show()
             nbbs = response.LabelsBbLength()
             print(nbbs)
             for x in range( nbbs ):
-                print("uuidmsg: " + response.Header().UuidMsgs().decode("utf-8"))
-                print("first label: " + response.LabelsBb(0).LabelWithInstance().Label().decode("utf-8"))
+                # print("uuidmsg: " + response.Header().UuidMsgs().decode("utf-8"))
+                # print("first label: " + response.LabelsBb(0).LabelWithInstance().Label().decode("utf-8"))
+                # print(
+                #     "first BoundingBox (Xmin,Ymin,Xmax,Ymax): "
+                #     + str(response.LabelsBb(0).BoundingBox().PointMin().X())
+                #     + " "
+                #     + str(response.LabelsBb(0).BoundingBox().PointMin().Y())
+                #     + " "
+                #     + str(response.LabelsBb(0).BoundingBox().PointMax().X())
+                #     + " "
+                #     + str(response.LabelsBb(0).BoundingBox().PointMax().Y())
+                # )
+                print(f"uuidmsg: {response.Header().UuidMsgs().decode('utf-8')}")
+                print("first label: " + response.LabelsBb(0).BoundingBox2dLabeled(0).LabelWithInstance().Label().decode("utf-8"))
                 print(
-                    "first BoundingBox (Xmin,Ymin,Xmax,Ymax): "
-                    + str(response.LabelsBb(0).BoundingBox().PointMin().X())
-                    + " "
-                    + str(response.LabelsBb(0).BoundingBox().PointMin().Y())
-                    + " "
-                    + str(response.LabelsBb(0).BoundingBox().PointMax().X())
-                    + " "
-                    + str(response.LabelsBb(0).BoundingBox().PointMax().Y())
-                )
-            #'''
+                    "first bounding box (Xmin,Ymin,Xmax,Ymax): "        + str(response.LabelsBb(0).BoundingBox2dLabeled(0).BoundingBox().PointMin().X())
+                    + " "        + str(response.LabelsBb(0).BoundingBox2dLabeled(0).BoundingBox().PointMin().Y())
+                    + " "        + str(response.LabelsBb(0).BoundingBox2dLabeled(0).BoundingBox().PointMax().X())
+                    + " "        + str(response.LabelsBb(0).BoundingBox2dLabeled(0).BoundingBox().PointMax().Y())
+                    + "\n"    )
             break
         return images
 
