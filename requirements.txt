@@ -1,6 +1,11 @@
+
+###### Triton dependencies
 torch==1.8.1
 torchvision==0.9.1
 nvidia-pyindex
 tritonclient[all]
 opencv-python
 grpcio-tools~=1.37.0
+
+#####   SEEREP dependencies
+flatbuffers>=23.1.21
