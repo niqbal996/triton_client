@@ -121,7 +121,8 @@ class EvaluateInference(BaseInference):
             statistics = self.calculate_metrics()
 
         elif source == "seerepfb":
-            schan = seerep_channel.SEEREPChannel()
+            schan = seerep_channel.SEEREPChannel(project_name='simulatedCrops',
+                                                socket='agrigaia-ur.ni.dfki:9090')
             #ts = schan.gen_timestamp(1610549273, 1938549273)
 
             # recieve all the images from seerep
