@@ -56,18 +56,6 @@ def parse_args():
                         required=False,
                         default=False,
                         help='Enable verbose output')
-    parser.add_argument('-a',
-                        '--async',
-                        dest="async_set",
-                        action="store_true",
-                        required=False,
-                        default=False,
-                        help='Use asynchronous inference API')
-    parser.add_argument('--streaming',
-                        action="store_true",
-                        required=False,
-                        default=False,
-                        help='Use streaming inference API')
     parser.add_argument('-m',
                         '--model-name',
                         type=str,
@@ -88,12 +76,6 @@ def parse_args():
                         required=False,
                         default=1,
                         help='Batch size. Default is 1.')
-    parser.add_argument('-c',
-                        '--classes',
-                        type=int,
-                        required=False,
-                        default=80,
-                        help='Number of class results to report. Default is 1.')
     parser.add_argument(
         '-s',
         '--scaling',
@@ -139,44 +121,3 @@ if __name__ == '__main__':
     #inference.start_inference()
     evaluation = EvaluateInference(channel, client)
     evaluation.start_inference(FLAGS.imagesrc, FLAGS.model_name)
-    # # input_name, output_name, c, h, w, format, dtype = parse_model(
-    # #     metadata_response, config_response.config)
-    # #
-    # # # Send requests of FLAGS.batch_size images. If the number of
-    # # # images isn't an exact multiple of FLAGS.batch_size then just
-    # # # start over with the first images until the batch is filled.
-    # # requests = []
-    # # responses = []
-    # # result_filenames = []
-    #
-    # # Send request
-    # #Todo : change the below loc (if else) into interfaces and implementations
-    # if FLAGS.streaming and not FLAGS.ros_topic:
-    #     for response in grpc_stub.ModelStreamInfer(
-    #             requestGenerator(input_name, output_name, c, h, w, format,
-    #                              dtype, FLAGS, result_filenames)):
-    #         responses.append(response)
-    # elif FLAGS.image_src == 'ros':
-    #     ros_node = RealSenseNode(grpc_stub,
-    #                              input_name,
-    #                              output_name,
-    #                              param,
-    #                              FLAGS,
-    #                              dtype,
-    #                              c, h, w)
-    #     ros_node.start_inference()
-    # else:
-    #     for request in requestGenerator(input_name, output_name, c, h, w,
-    #                                     format, dtype, FLAGS, result_filenames):
-    #         if not FLAGS.async_set:
-    #             # requests.append(request)
-    #             response = grpc_stub.ModelInfer(request)
-    #             prediction = extract_boxes_triton(response)
-    #         else:
-    #             requests.append(grpc_stub.ModelInfer.future(request))
-    #
-    # # For async, retrieve results according to the send order
-    # if FLAGS.async_set:
-    #     for request in requests:
-    #         responses.append(request.result())
-    #
