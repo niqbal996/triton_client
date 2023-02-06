@@ -85,6 +85,23 @@ python3 main.py -m YOLOv5nCROP
 ```
 Now your sensor input will be fed to the triton server as gRPC messages and the resulting inference image will be published as ROS topic which you can 
 visualize in the ROS ecosystem with rviz. 
+
+## Performing Remote Inference with Data sourced from SEEREP
+
+To perform an inference with data from SEEREP and save the inferences in SEEREP, the following are needed:
+- A SEEREP instance with data
+- A Triton server with a deployed model
+- A Triton client with the implemented functionality
+
+Instructions for a deploying a SEEREP instance are avaiable [here](https://agri-gaia.github.io/seerep/doxygen/index.html#autotoc_md4)
+
+Instructions for deploying a Triton server are in [above](#deploy-triton-server)
+
+In order to use the Triton Client to use SEEREP:
+- After having cloned this repo, run `git checkout seerep_infer`
+- Specify name of SEEREP project and socket on line 123 [here](https://github.com/niqbal996/triton_client/blob/seerep_infer/communicator/evaluate_inference.py#L124)
+- Run `python3 main.py -m model_name -i seerepfb`
+
 # Run prometheus (Optional)
 To visualize the triton metrics on a grafana dashboard you need to download and run prometheus first [download link](https://prometheus.io/download/)
 (tested with version 2.35.0). You need to update its configuration .yaml file to provide triton backend as below: 
