@@ -27,10 +27,7 @@ class SEEREPChannel():
     """
     A SEEREPChannel is establishes a connection between the triton client and SEEREP.
     """
-
-    #def __init__(self,params,FLAGS):
     def __init__(self, project_name='testproject', socket='agrigaia-ur.ni.dfki:9090'):
-        #super().__init__(params,FLAGS)
         self._meta_data = {}
         self._grpc_stub = None
         self._grpc_stubmeta = None
@@ -43,8 +40,6 @@ class SEEREPChannel():
         # register and initialise the stub
         self.channel = self.make_channel(secure=False)
         self.register_channel()
-        #self.register_channel(socket='seerep.robot.10.249.3.13.nip.io:31723', projname='simulatedDataWithInstances')
-        #self.register_channel(socket='agrigaia-ur.ni.dfki:31723', projname='simulatedDataWithInstances')
         #self._grpc_metadata() #
 
     def make_channel (self, secure=False):
@@ -73,7 +68,7 @@ class SEEREPChannel():
         self._grpc_stubmeta = metaOperations.MetaOperationsStub(self.channel)  
         self._builder = self.init_builder()
         self._msgUuid = None
-        self._projectid = self.retrieve_project(self.projname)
+        self._projectid = self.retrieve_project(self.projname, log=True)
 
     def secondary_channel(self):
         """
@@ -85,7 +80,7 @@ class SEEREPChannel():
         grpc_stub  = imageService.ImageServiceStub(self.channel)
         grpc_stubmeta = metaOperations.MetaOperationsStub(self.channel)  
         builder = self.init_builder()
-        projectid = self.retrieve_project(self.projname)
+        projectid = self.retrieve_project(self.projname, log=False)
 
         return (grpc_stub, grpc_stubmeta, builder, projectid)
 
@@ -137,7 +132,7 @@ class SEEREPChannel():
         """
         return self._grpc_stub.ModelInfer(self.request)
 
-    def retrieve_project(self, projname):
+    def retrieve_project(self, projname, log=False):
         '''
         '''
         Empty.Start(self._builder)
@@ -149,15 +144,19 @@ class SEEREPChannel():
         response = ProjectInfos.ProjectInfos.GetRootAs(responseBuf)
 
         for i in range(response.ProjectsLength()):
-            print(response.Projects(i).Name().decode("utf-8") + " " + response.Projects(i).Uuid().decode("utf-8"))
-            if response.Projects(i).Name().decode("utf-8") == projname:
-                projectuuid = response.Projects(i).Uuid().decode("utf-8")
-                print("[FOUND PROJ] ", projectuuid)
-                break
-
-            # if no project was found
-            raise Exception("No project by the provided name was found.")
-
+            if log==True:
+                try:
+                    print(response.Projects(i).Name().decode("utf-8") + " " + response.Projects(i).Uuid().decode("utf-8"))
+                    if response.Projects(i).Name().decode("utf-8") == projname:
+                        projectuuid = response.Projects(i).Uuid().decode("utf-8")
+                        print("[FOUND PROJ] ", projectuuid)
+                except Exception as e:
+                    print(e)
+            else:
+                try:
+                    projectuuid = response.Projects(i).Uuid().decode("utf-8")
+                except Exception as e:
+                    print(e)
         return projectuuid
 
     def string_to_fbmsg (self, projectuuid):
@@ -298,22 +297,25 @@ class SEEREPChannel():
         self._builder.Finish(queryMsg)
         buf = self._builder.Output()
         
-        images = []
+        data = []
+        sample = {}
 
         for responseBuf in self._grpc_stub.GetImage(bytes(buf)):
+            print('[INFO] Receiving images . . .')
             response = Image.Image.GetRootAs(responseBuf)
 
             # this should not be inside the loop
             self._msguuid = response.Header().UuidMsgs().decode("utf-8")
-
-            images.append(np.reshape(response.DataAsNumpy(), (response.Height(), response.Width(), 3)))
+            sample['uuid'] = self._msguuid
+            sample['image'] = np.reshape(response.DataAsNumpy(), (response.Height(), response.Width(), 3))
 
             # Uncomment to visualize images
             # import matplotlib.pyplot as plt
             # plt.imshow(np.reshape(response.DataAsNumpy(), (response.Height(), response.Width(), 3)))
             # plt.show()
+            # TODO why are the bounding boxes empty?????
             nbbs = response.LabelsBbLength()
-            print(nbbs)
+            sample['boxes'] = nbbs
             for x in range( nbbs ):
                 # print("uuidmsg: " + response.Header().UuidMsgs().decode("utf-8"))
                 # print("first label: " + response.LabelsBb(0).LabelWithInstance().Label().decode("utf-8"))
@@ -335,14 +337,15 @@ class SEEREPChannel():
                     + " "        + str(response.LabelsBb(0).BoundingBox2dLabeled(0).BoundingBox().PointMax().X())
                     + " "        + str(response.LabelsBb(0).BoundingBox2dLabeled(0).BoundingBox().PointMax().Y())
                     + "\n"    )
-            break
-        return images
+            data.append(sample)
+            sample={}
+        return data
 
-    def sendboundingbox(self, bbs, labels, model_name):
+    def sendboundingbox(self, sample, bbs, labels, model_name):
         header = util_fb.createHeader(
             self._builder,
             projectUuid = self._projectid,
-            msgUuid= self._msguuid
+            msgUuid= sample['uuid']
         )
 
         boundingBoxes = util_fb.createBoundingBoxes2d(
@@ -368,7 +371,10 @@ class SEEREPChannel():
         msg = [bytes(buf)]
 
         send_channel, _, _, _ = self.secondary_channel()
-        ret = send_channel.AddBoundingBoxes2dLabeled( iter(msg) )
+        try:
+            ret = send_channel.AddBoundingBoxes2dLabeled( iter(msg) )
+        except Exception as e:
+            print(e)   
 
 
     '''
