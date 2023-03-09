@@ -125,14 +125,14 @@ class EvaluateInference(BaseInference):
                                                 socket='agrigaia-ur.ni.dfki:9090')
             #ts = schan.gen_timestamp(1610549273, 1938549273)
 
-            # recieve all the images from seerep
-            imgs = schan.run_query()
-            rospy.loginfo("Number of images retireved from SEEREP: " + str(len(imgs)))
+            # receive all the images from seerep (GOTCHA :D)
+            data = schan.run_query()
+            rospy.loginfo("Number of images retrieved from SEEREP: " + str(len(data)))
 
             # traverse through the images
-            for img in imgs:
+            for sample in data:
                 # perform an inference on each image, iteratively
-                pred = self.seerep_infer(img)
+                pred = self.seerep_infer(sample['image'])
 
                 bbs = []
                 labels = []
@@ -145,18 +145,9 @@ class EvaluateInference(BaseInference):
                     bbs.append( (start_cord, end_cord) )
                     labels.append(label)
 
-                schan.sendboundingbox(bbs, labels, model_name)
+                # schan.sendboundingbox(bbs, labels, model_name)
+                schan.sendboundingbox(sample, bbs, labels, 'groundtruth_3')
                 rospy.loginfo("Transfered to SEEREP")
-
-        rospy.loginfo('Sending Metrics to Prometheus')
-
-        rospy.loginfo('Sent Metrics to Prometheus')
-
-        rospy.spin()
-        # if self.show_gt:
-        #     self.visualize_gt()
-        # if self.show_preds:
-        #     self.visualize_pred()
         # self.calculate_metrics()
 
     def compute_ap(self, recall, precision):
