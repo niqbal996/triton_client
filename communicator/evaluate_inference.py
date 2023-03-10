@@ -40,6 +40,7 @@ class EvaluateInference(BaseInference):
         self._register_inference() # register inference based on type of client
         self.client_postprocess = client.get_postprocess() # get postprocess of client
         self.client_preprocess = client.get_preprocess()
+        self.model_name = client.model_name
         self.class_names = self.client_postprocess.load_class_names()
         self.count  = 0
         self.id_list_preds = []
@@ -136,17 +137,17 @@ class EvaluateInference(BaseInference):
 
                 bbs = []
                 labels = []
-
+                confidences = []
                 # traverse the perdictions for the current image
-                for p in pred:
-                    start_cord, end_cord = (p[0], p[1]), (p[2]-p[0], p[3]-p[1])
-                    label = self.class_names[int(p[-1])]
-
+                for obj in range(len(pred[1])):
+                    start_cord, end_cord = (pred[0][obj, 0], pred[0][obj, 1]), (pred[0][obj, 2], pred[0][obj, 3])
+                    # start_cord, end_cord = (p[0], p[1]), (p[2]-p[0], p[3]-p[1])
+                    label = self.class_names[int(pred[1][obj])]
+                    confidences.append(pred[2][obj])
                     bbs.append( (start_cord, end_cord) )
                     labels.append(label)
-
-                # schan.sendboundingbox(bbs, labels, model_name)
-                schan.sendboundingbox(sample, bbs, labels, 'groundtruth_3')
+                schan.sendboundingbox(sample, bbs, labels, self.model_name)
+                print('[INFO] Sent boxes for image under category name {}'.format(self.model_name))
                 rospy.loginfo("Transfered to SEEREP")
         # self.calculate_metrics()
 
@@ -334,7 +335,7 @@ class EvaluateInference(BaseInference):
             self.channel.request.raw_input_contents.extend([self.image.tobytes()])
             self.channel.response = self.channel.do_inference()  # Inference
             self.prediction = self.client_postprocess.extract_boxes(self.channel.response)
-            self.prediction = self._scale_box_array(self.prediction[0], normalized=False)
+            self.prediction[0] = self._scale_box_array(self.prediction[0], normalized=False)
 
         return self.prediction
 
