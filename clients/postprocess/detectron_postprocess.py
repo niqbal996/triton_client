@@ -35,4 +35,4 @@ class FCOSpostprocess(Postprocess):
         scores = self.deserialize_bytes_float(prediction.raw_output_contents[2])
         scores = np.reshape(scores, prediction.outputs[2].shape)
 
-        return boxes, class_ids, scores
+        return [boxes, class_ids, scores]

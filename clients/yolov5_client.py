@@ -7,8 +7,9 @@ class Yolov5client(Client):
     """
     """
 
-    def __init__(self, ):
+    def __init__(self, model_name='None'):
         super().__init__()
+        self.model_name = model_name
 
     def register_client(self, clienttype, client):
         """
@@ -21,7 +22,7 @@ class Yolov5client(Client):
 
     def get_postprocess(self):
         return yolov5_postprocess.Yolov5postprocess()
-
+        
     # def parse_model(self, model_metadata, model_config):
     #     """
     #         Check the configuration of a model to make sure it meets the

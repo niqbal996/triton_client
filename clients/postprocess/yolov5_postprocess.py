@@ -119,7 +119,8 @@ class Yolov5postprocess(Postprocess):
             if (time.time() - t) > time_limit:
                 print(f'WARNING: NMS time limit {time_limit}s exceeded')
                 break  # time limit exceeded
-
+        output = output[0].cpu().numpy()
+        output = [output[:, 0:4], output[:, 5], output[:, 4]]
         return output
 
     def plot_boxes_cv2(self,img, boxes, savename=None, class_names=None, color=None):

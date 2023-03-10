@@ -5,9 +5,10 @@ class FCOS_client(Client):
     """
 
     """
-    def __init__(self, ):
+    def __init__(self, model_name):
         super().__init__()
-
+        self.model_name = model_name
+        
     def register_client(self, clienttype, client):
         """
         Implement the method to register the client for
