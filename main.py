@@ -45,6 +45,13 @@ from communicator import RosInference, EvaluateInference
 from communicator.channel import grpc_channel, seerep_channel
 from clients import Yolov5client, FCOS_client
 
+clients = {
+    'YOLOv5nCROP': Yolov5client,
+    'FCOS_detectron':FCOS_client,
+    # 'second_iou':Pointpillars_client,
+    # more clients can be added
+}
+
 
 FLAGS = None
 
@@ -60,7 +67,6 @@ def parse_args():
                         '--model-name',
                         type=str,
                         required=False,
-                        # choices=['YOLOv5n', 'FCOS', 'fcos_weed_detector'],
                         default="YOLOv5nCROP",
                         help='Name of model')
     parser.add_argument(
@@ -102,16 +108,8 @@ if __name__ == '__main__':
     with open(param_file) as file:
         param = yaml.load(file, Loader=yaml.FullLoader)
 
-    # define client
-    # if 'yolo' in FLAGS.model_name:
-    #     client = Yolov5client()
-    # elif 'fcos' in FLAGS.model_name:
-    #     client = FCOS_client()
-    # else:
-    #     client = FCOS_client() # TODO DEBUG
-
-    client = Yolov5client()
-    # client = FCOS_client()
+    client = clients[FLAGS.model_name](model_name=FLAGS.model_name)
+    # client = FCOS_client(model_name='FCOS_detectron')
 
     #define channel
     channel = grpc_channel.GRPCChannel(param, FLAGS)
