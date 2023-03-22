@@ -316,40 +316,30 @@ class SEEREPChannel():
             # TODO why are the bounding boxes empty?????
             nbbs = response.LabelsBbLength()
             sample['boxes'] = nbbs
-            for x in range( nbbs ):
-                # print("uuidmsg: " + response.Header().UuidMsgs().decode("utf-8"))
-                # print("first label: " + response.LabelsBb(0).LabelWithInstance().Label().decode("utf-8"))
-                # print(
-                #     "first BoundingBox (Xmin,Ymin,Xmax,Ymax): "
-                #     + str(response.LabelsBb(0).BoundingBox().PointMin().X())
-                #     + " "
-                #     + str(response.LabelsBb(0).BoundingBox().PointMin().Y())
-                #     + " "
-                #     + str(response.LabelsBb(0).BoundingBox().PointMax().X())
-                #     + " "
-                #     + str(response.LabelsBb(0).BoundingBox().PointMax().Y())
-                # )
-                print(f"uuidmsg: {response.Header().UuidMsgs().decode('utf-8')}")
-                print("first label: " + response.LabelsBb(0).BoundingBox2dLabeled(0).LabelWithInstance().Label().Label().decode("utf-8") 
-                    + " ; confidence: " 
-                    + str(response.LabelsBb(0).BoundingBox2dLabeled(0).LabelWithInstance().Label().Confidence())
-                     )
-                print(
-                    "first bounding box (Xcenter,Ycenter,Xextent,Yextent): "
-                    + str(response.LabelsBb(0).BoundingBox2dLabeled(0).BoundingBox().CenterPoint().X())
-                    + " "
-                    + str(response.LabelsBb(0).BoundingBox2dLabeled(0).BoundingBox().CenterPoint().Y())
-                    + " "
-                    + str(response.LabelsBb(0).BoundingBox2dLabeled(0).BoundingBox().SpatialExtent().X())
-                    + " "
-                    + str(response.LabelsBb(0).BoundingBox2dLabeled(0).BoundingBox().SpatialExtent().Y())
-                    + "\n"
-                )
+            for category in range(response.LabelsBbLength()):
+                print("Category name: {}".format(response.LabelsBb(category).Category().decode("utf-8")))
+                for x in range(response.LabelsBb(0).BoundingBox2dLabeledLength()):
+                    print(f"uuidmsg: {response.Header().UuidMsgs().decode('utf-8')}")
+                    print("first label: " + response.LabelsBb(0).BoundingBox2dLabeled(x).LabelWithInstance().Label().Label().decode("utf-8") 
+                        + " ; confidence: " 
+                        + str(response.LabelsBb(0).BoundingBox2dLabeled(x).LabelWithInstance().Label().Confidence())
+                        )
+                    print(
+                        "bounding box number (Xcenter,Ycenter,Xextent,Yextent):"
+                        + str(response.LabelsBb(0).BoundingBox2dLabeled(x).BoundingBox().CenterPoint().X())
+                        + " "
+                        + str(response.LabelsBb(0).BoundingBox2dLabeled(x).BoundingBox().CenterPoint().Y())
+                        + " "
+                        + str(response.LabelsBb(0).BoundingBox2dLabeled(x).BoundingBox().SpatialExtent().X())
+                        + " "
+                        + str(response.LabelsBb(0).BoundingBox2dLabeled(x).BoundingBox().SpatialExtent().Y())
+                        + "\n"
+                    )
             data.append(sample)
             sample={}
         return data
 
-    def sendboundingbox(self, sample, bbs, labels, model_name):
+    def sendboundingbox(self, sample, bbs, labels, confidences, model_name):
         header = util_fb.createHeader(
             self._builder,
             projectUuid = self._projectid,
@@ -361,11 +351,20 @@ class SEEREPChannel():
             [util_fb.createPoint2d(self._builder, bb[0][0], bb[0][1]) for bb in bbs],
             [util_fb.createPoint2d(self._builder, bb[1][0], bb[1][1]) for bb in bbs],
         )
-        labelWithInstances = util_fb.createLabelsWithInstance(
+        if model_name == "ground_truth":
+            labelWithInstances = util_fb.createLabelsWithInstance(
             self._builder,
             [label for label in labels],
+            [1.0 for conf in confidences],
             [str(uuid.uuid4()) for _ in range(len(bbs))],
-        )
+            )
+        else:   
+            labelWithInstances = util_fb.createLabelsWithInstance(
+            self._builder,
+            [label for label in labels],
+            [conf for conf in confidences],
+            [str(uuid.uuid4()) for _ in range(len(bbs))],
+            )
         labelsBb = util_fb.createBoundingBoxes2dLabeled(self._builder, labelWithInstances, boundingBoxes)
 
         boundingBox2DLabeledWithCategory = util_fb.createBoundingBox2DLabeledWithCategory(

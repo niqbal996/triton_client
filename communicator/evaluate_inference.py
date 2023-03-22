@@ -122,11 +122,10 @@ class EvaluateInference(BaseInference):
             statistics = self.calculate_metrics()
 
         elif source == "seerepfb":
-            schan = seerep_channel.SEEREPChannel(project_name='simulatedCrops',
+            schan = seerep_channel.SEEREPChannel(project_name='simulatedCropsGroundTruth',
                                                 socket='agrigaia-ur.ni.dfki:9090')
-            #ts = schan.gen_timestamp(1610549273, 1938549273)
+                                                # socket='localhost:9090')
 
-            # receive all the images from seerep (GOTCHA :D)
             data = schan.run_query()
             rospy.loginfo("Number of images retrieved from SEEREP: " + str(len(data)))
 
@@ -146,7 +145,8 @@ class EvaluateInference(BaseInference):
                     confidences.append(pred[2][obj])
                     bbs.append( (start_cord, end_cord) )
                     labels.append(label)
-                schan.sendboundingbox(sample, bbs, labels, self.model_name)
+                # schan.sendboundingbox(sample, bbs, labels, confidences, self.model_name)
+                schan.sendboundingbox(sample, bbs, labels, confidences, 'ground_truth')
                 print('[INFO] Sent boxes for image under category name {}'.format(self.model_name))
                 rospy.loginfo("Transfered to SEEREP")
         # self.calculate_metrics()

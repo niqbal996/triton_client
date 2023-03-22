@@ -9,6 +9,7 @@ from seerep.fb import (
     BoundingboxStamped,
     Empty,
     Header,
+    Label,
     LabelsWithCategory,
     LabelWithInstance,
     Point,
@@ -127,13 +128,22 @@ def createPointFields(builder, channels, datatype, dataTypeOffset, count):
         offset += dataTypeOffset
     return pointFieldsList
 
+def createLabelWithConfidence(builder, label, confidence=None):
+    labelStr = builder.CreateString(label)
+    Label.Start(builder)
+    Label.AddLabel(builder, labelStr)
+    if confidence:
+        Label.AddConfidence(builder, confidence)
+    return Label.End(builder)
 
-def createLabelWithInstance(builder, label, instanceUuid):
+def createLabelWithInstance(builder, label, confidence, instanceUuid):
     '''Creates a label with an associated instance uuid in flatbuffers'''
+    labelConfidence = createLabelWithConfidence(builder, label, confidence)
     labelStr = builder.CreateString(label)
     instanceUuidStr = builder.CreateString(instanceUuid)
     LabelWithInstance.Start(builder)
     LabelWithInstance.AddLabel(builder, labelStr)
+    LabelWithInstance.AddLabel(builder, labelConfidence)
     LabelWithInstance.AddInstanceUuid(builder, instanceUuidStr)
     return LabelWithInstance.End(builder)
 
@@ -162,12 +172,12 @@ def createLabelWithCategory(builder, category, labels):
     return builder.EndVector()
 
 
-def createLabelsWithInstance(builder, labels, instanceUuids):
+def createLabelsWithInstance(builder, labels, confidences, instanceUuids):
     '''Creates multiple general labels'''
     assert len(labels) == len(instanceUuids)
     labelsGeneral = []
-    for label, uuid in zip(labels, instanceUuids):
-        labelsGeneral.append(createLabelWithInstance(builder, label, uuid))
+    for label, confidence, uuid in zip(labels, confidences, instanceUuids):
+        labelsGeneral.append(createLabelWithInstance(builder, label, confidence, uuid))
     return labelsGeneral
 
 
@@ -184,6 +194,7 @@ def createBoundingBox2d(builder, point2dCenter, point2dHW):
     Boundingbox.Start(builder)
     Boundingbox.AddCenterPoint(builder, point2dCenter)
     Boundingbox.AddSpatialExtent(builder, point2dHW)
+    # Boundingbox.AddConfidence(builder, 0.8)
     return Boundingbox.End(builder)
 
 
