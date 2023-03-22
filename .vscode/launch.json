@@ -11,6 +11,8 @@
             "program": "main.py",
             "args": [
                 "-i", "seerepfb",
+                "-m", "YOLOv5nCROP",
+                // "-m", "FCOS_detectron"
             ],
             "console": "integratedTerminal",
             "justMyCode": true
