@@ -287,7 +287,7 @@ class SEEREPChannel():
         Query.Start(self._builder)
 
         Query.AddProjectuuid(self._builder, projectuuidMsg)
-
+# Query.AddWithoutdata
         for key, value in kwargs.items():
             if key == "bb": Query.AddBoundingbox(self._builder, value)
             if key == "ti": Query.AddTimeinterval(self._builder, value)
@@ -330,13 +330,21 @@ class SEEREPChannel():
                 #     + str(response.LabelsBb(0).BoundingBox().PointMax().Y())
                 # )
                 print(f"uuidmsg: {response.Header().UuidMsgs().decode('utf-8')}")
-                print("first label: " + response.LabelsBb(0).BoundingBox2dLabeled(0).LabelWithInstance().Label().decode("utf-8"))
+                print("first label: " + response.LabelsBb(0).BoundingBox2dLabeled(0).LabelWithInstance().Label().Label().decode("utf-8") 
+                    + " ; confidence: " 
+                    + str(response.LabelsBb(0).BoundingBox2dLabeled(0).LabelWithInstance().Label().Confidence())
+                     )
                 print(
-                    "first bounding box (Xmin,Ymin,Xmax,Ymax): "        + str(response.LabelsBb(0).BoundingBox2dLabeled(0).BoundingBox().PointMin().X())
-                    + " "        + str(response.LabelsBb(0).BoundingBox2dLabeled(0).BoundingBox().PointMin().Y())
-                    + " "        + str(response.LabelsBb(0).BoundingBox2dLabeled(0).BoundingBox().PointMax().X())
-                    + " "        + str(response.LabelsBb(0).BoundingBox2dLabeled(0).BoundingBox().PointMax().Y())
-                    + "\n"    )
+                    "first bounding box (Xcenter,Ycenter,Xextent,Yextent): "
+                    + str(response.LabelsBb(0).BoundingBox2dLabeled(0).BoundingBox().CenterPoint().X())
+                    + " "
+                    + str(response.LabelsBb(0).BoundingBox2dLabeled(0).BoundingBox().CenterPoint().Y())
+                    + " "
+                    + str(response.LabelsBb(0).BoundingBox2dLabeled(0).BoundingBox().SpatialExtent().X())
+                    + " "
+                    + str(response.LabelsBb(0).BoundingBox2dLabeled(0).BoundingBox().SpatialExtent().Y())
+                    + "\n"
+                )
             data.append(sample)
             sample={}
         return data

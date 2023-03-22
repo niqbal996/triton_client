@@ -179,11 +179,11 @@ def createPoint2d(builder, x, y):
     return Point.End(builder)
 
 
-def createBoundingBox2d(builder, point2dMin, point2dMax):
-    '''Creates a 3D bounding box in flatbuffers'''
+def createBoundingBox2d(builder, point2dCenter, point2dHW):
+    '''Creates a 2D bounding box in flatbuffers'''
     Boundingbox.Start(builder)
-    Boundingbox.AddPointMin(builder, point2dMin)
-    Boundingbox.AddPointMax(builder, point2dMax)
+    Boundingbox.AddCenterPoint(builder, point2dCenter)
+    Boundingbox.AddSpatialExtent(builder, point2dHW)
     return Boundingbox.End(builder)
 
 

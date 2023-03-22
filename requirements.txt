@@ -8,4 +8,4 @@ opencv-python
 grpcio-tools~=1.37.0
 
 #####   SEEREP dependencies
-flatbuffers>=23.1.21
+seerep_grpc>=0.2.0
