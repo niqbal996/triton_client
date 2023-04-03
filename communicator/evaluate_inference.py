@@ -8,12 +8,15 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+from pycocotools.coco import COCO
+from pycocotools.cocoeval import COCOeval
 
 from tritonclient.grpc import service_pb2, service_pb2_grpc
 import tritonclient.grpc.model_config_pb2 as mc
 from .channel import grpc_channel
 from .base_inference import BaseInference
 from communicator.channel import seerep_channel
+from tools.seerep2coco import COCO_SEEREP
 # from utils import image_util
 
 from prometheus_client import start_http_server, Summary, Histogram
@@ -126,7 +129,10 @@ class EvaluateInference(BaseInference):
                                                 socket='agrigaia-ur.ni.dfki:9090')
                                                 # socket='localhost:9090')
 
-            data = schan.run_query()
+            # data = schan.run_query()
+            
+            data = schan.run_query_aitf()
+            coco_data = COCO_SEEREP(seerep_data=data)
             rospy.loginfo("Number of images retrieved from SEEREP: " + str(len(data)))
 
             # traverse through the images
@@ -139,15 +145,19 @@ class EvaluateInference(BaseInference):
                 confidences = []
                 # traverse the perdictions for the current image
                 for obj in range(len(pred[1])):
-                    start_cord, end_cord = (pred[0][obj, 0], pred[0][obj, 1]), (pred[0][obj, 2], pred[0][obj, 3])
-                    # start_cord, end_cord = (p[0], p[1]), (p[2]-p[0], p[3]-p[1])
+                    start_cord, end_cord = (int(pred[0][obj, 0]), int(pred[0][obj, 1])), (int(pred[0][obj, 2]), int(pred[0][obj, 3]))
+                    x, y, w, h = (start_cord[0] + end_cord[0]) / 2, (start_cord[1] + end_cord[1])/2, end_cord[0] - start_cord[0], end_cord[1] - start_cord[1]
                     label = self.class_names[int(pred[1][obj])]
                     confidences.append(pred[2][obj])
-                    bbs.append( (start_cord, end_cord) )
+                    bbs.append(((x,y), (w,h)))      # SEEREP expects center x,y and width, height
+                    # bbs.append((start_cord, end_cord))
                     labels.append(label)
-                # schan.sendboundingbox(sample, bbs, labels, confidences, self.model_name)
-                schan.sendboundingbox(sample, bbs, labels, confidences, 'ground_truth')
-                print('[INFO] Sent boxes for image under category name {}'.format(self.model_name))
+                    # cv2.rectangle(sample['image'], start_cord, end_cord, (255, 0, 0), 2)
+                # cv2.imshow('image', sample['image'])
+                # cv2.waitKey(0)
+                schan.sendboundingbox(sample, bbs, labels, confidences, self.model_name+'_2')
+                # schan.sendboundingbox(sample, bbs, labels, confidences, 'ground_truth_2')
+                print('[INFO] Sent boxes for image under category name {}'.format(self.model_name+'_2'))
                 rospy.loginfo("Transfered to SEEREP")
         # self.calculate_metrics()
 
@@ -335,6 +345,13 @@ class EvaluateInference(BaseInference):
             self.channel.request.raw_input_contents.extend([self.image.tobytes()])
             self.channel.response = self.channel.do_inference()  # Inference
             self.prediction = self.client_postprocess.extract_boxes(self.channel.response)
+            # DEBUG
+            # tmp = np.transpose(self.image[0, :, :], (1, 2, 0))
+            # tmp = cv2.cvtColor(tmp, cv2.COLOR_RGB2BGR).astype(np.uint8)
+            # for box in self.prediction[0]:
+            #     cv2.rectangle(tmp, (int(box[0]), int(box[1])), (int(box[2]), int(box[3])), (255, 0, 0), 2)
+            # cv2.imshow('img', tmp)
+            # cv2.waitKey(0)
             self.prediction[0] = self._scale_box_array(self.prediction[0], normalized=False)
 
         return self.prediction
