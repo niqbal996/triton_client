@@ -285,9 +285,8 @@ class SEEREPChannel():
         projectuuidMsg = self._builder.EndVector()
 
         Query.Start(self._builder)
-
         Query.AddProjectuuid(self._builder, projectuuidMsg)
-# Query.AddWithoutdata
+        # Query.AddWithoutdata
         for key, value in kwargs.items():
             if key == "bb": Query.AddBoundingbox(self._builder, value)
             if key == "ti": Query.AddTimeinterval(self._builder, value)
@@ -339,6 +338,87 @@ class SEEREPChannel():
             sample={}
         return data
 
+    def run_query_aitf(self, **kwargs):
+        projectuuidString = self._builder.CreateString(self._projectid)
+        Query.StartProjectuuidVector(self._builder, 1)
+        self._builder.PrependUOffsetTRelative(projectuuidString)
+        projectuuidMsg = self._builder.EndVector()
+        projectUuids = [projectuuidString]
+        # labels = [[self._builder.CreateString("person")]]
+        categories = ['ground_truth', 'FCOS_detectron']
+        labels = [[util_fb.createLabelWithConfidence(self._builder, "maize")],
+                  [util_fb.createLabelWithConfidence(self._builder, "maize")]]
+        # labels = [[util_fb.createLabelWithConfidence(self._builder, "maize"), 
+        #            util_fb.createLabelWithConfidence(self._builder, "weeds")],
+        #           [util_fb.createLabelWithConfidence(self._builder, "maize"), 
+        #            util_fb.createLabelWithConfidence(self._builder, "weeds")]]
+        labelCategory = util_fb.createLabelWithCategory(self._builder, categories, labels)
+        # Query.Start(self._builder)
+        # Query.AddProjectuuid(self._builder, projectuuidMsg)
+        # # Query.AddWithoutdata
+        # for key, value in kwargs.items():
+        #     if key == "bb": Query.AddBoundingbox(self._builder, value)
+        #     if key == "ti": Query.AddTimeinterval(self._builder, value)
+        # queryMsg = Query.End(self._builder)
+        queryMsg = util_fb.createQuery(
+            self._builder,
+            # boundingBox=boundingboxStamped,
+            # timeInterval=timeInterval,
+            labels=labelCategory,
+            # mustHaveAllLabels=True,
+            projectUuids=projectUuids,
+            # instanceUuids=instanceUuids,
+            # dataUuids=dataUuids,
+            withoutData=False,
+        )
+        self._builder.Finish(queryMsg)
+        buf = self._builder.Output()
+        
+        data = []
+        sample = {}
+
+        for responseBuf in self._grpc_stub.GetImage(bytes(buf)):
+            print('[INFO] Receiving images . . .')
+            response = Image.Image.GetRootAs(responseBuf)
+
+            # this should not be inside the loop
+            self._msguuid = response.Header().UuidMsgs().decode("utf-8")
+            sample['uuid'] = self._msguuid
+            sample['image'] = np.reshape(response.DataAsNumpy(), (response.Height(), response.Width(), 3))
+
+            nbbs = response.LabelsBbLength()
+            sample['boxes'] = nbbs
+            for category in range(response.LabelsBbLength()):
+                print("Category name: {}".format(response.LabelsBb(category).Category().decode("utf-8")))
+                for j in range(response.LabelsBb(0).BoundingBox2dLabeledLength()):
+                    print(f"uuidmsg: {response.Header().UuidMsgs().decode('utf-8')}")
+                    print("label: " + response.LabelsBb(0).BoundingBox2dLabeled(j).LabelWithInstance().Label().Label().decode("utf-8") 
+                        + " ; confidence: " 
+                        + str(response.LabelsBb(0).BoundingBox2dLabeled(j).LabelWithInstance().Label().Confidence())
+                        )
+                    # print(
+                    #     "bounding box number (Xcenter,Ycenter,Xextent,Yextent):"
+                    #     + str(response.LabelsBb(0).BoundingBox2dLabeled(j).BoundingBox().CenterPoint().X())
+                    #     + " "
+                    #     + str(response.LabelsBb(0).BoundingBox2dLabeled(j).BoundingBox().CenterPoint().Y())
+                    #     + " "
+                    #     + str(response.LabelsBb(0).BoundingBox2dLabeled(j).BoundingBox().SpatialExtent().X())
+                    #     + " "
+                    #     + str(response.LabelsBb(0).BoundingBox2dLabeled(j).BoundingBox().SpatialExtent().Y())
+                    #     + "\n"
+                    # )
+                    # x, y = response.LabelsBb(0).BoundingBox2dLabeled(j).BoundingBox().CenterPoint().X(), response.LabelsBb(0).BoundingBox2dLabeled(j).BoundingBox().CenterPoint().Y()
+                    # w, h = response.LabelsBb(0).BoundingBox2dLabeled(j).BoundingBox().SpatialExtent().X(), response.LabelsBb(0).BoundingBox2dLabeled(j).BoundingBox().SpatialExtent().Y()
+                    # x1, y1 = int(x - (w/2)), int(y - (h/2))
+                    # x2, y2 = int(x + (w/2)), int(y + (h/2))
+                    # tmp = cv2.cvtColor(sample['image'], cv2.COLOR_RGB2BGR)
+                    # cv2.rectangle(tmp, (x1, y1), (x2, y2), (255, 0, 0), 2)
+            # cv2.imshow('image number {}'.format(x), tmp)
+            # cv2.waitKey(0)
+            data.append(sample)
+            sample={}
+        return data
+    
     def sendboundingbox(self, sample, bbs, labels, confidences, model_name):
         header = util_fb.createHeader(
             self._builder,
