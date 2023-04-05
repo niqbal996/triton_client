@@ -130,35 +130,37 @@ class EvaluateInference(BaseInference):
                                                 # socket='localhost:9090')
 
             # data = schan.run_query()
-            
             data = schan.run_query_aitf()
             coco_data = COCO_SEEREP(seerep_data=data)
             rospy.loginfo("Number of images retrieved from SEEREP: " + str(len(data)))
-
+            cocoEval = COCOeval(coco_data.ground_truth, coco_data.predictions, 'bbox')
+            cocoEval.evaluate()
+            cocoEval.accumulate()
+            cocoEval.summarize()
             # traverse through the images
-            for sample in data:
-                # perform an inference on each image, iteratively
-                pred = self.seerep_infer(sample['image'])
+            # for sample in data:
+            #     # perform an inference on each image, iteratively
+            #     pred = self.seerep_infer(sample['image'])
 
-                bbs = []
-                labels = []
-                confidences = []
-                # traverse the perdictions for the current image
-                for obj in range(len(pred[1])):
-                    start_cord, end_cord = (int(pred[0][obj, 0]), int(pred[0][obj, 1])), (int(pred[0][obj, 2]), int(pred[0][obj, 3]))
-                    x, y, w, h = (start_cord[0] + end_cord[0]) / 2, (start_cord[1] + end_cord[1])/2, end_cord[0] - start_cord[0], end_cord[1] - start_cord[1]
-                    label = self.class_names[int(pred[1][obj])]
-                    confidences.append(pred[2][obj])
-                    bbs.append(((x,y), (w,h)))      # SEEREP expects center x,y and width, height
-                    # bbs.append((start_cord, end_cord))
-                    labels.append(label)
-                    # cv2.rectangle(sample['image'], start_cord, end_cord, (255, 0, 0), 2)
-                # cv2.imshow('image', sample['image'])
-                # cv2.waitKey(0)
-                schan.sendboundingbox(sample, bbs, labels, confidences, self.model_name+'_2')
-                # schan.sendboundingbox(sample, bbs, labels, confidences, 'ground_truth_2')
-                print('[INFO] Sent boxes for image under category name {}'.format(self.model_name+'_2'))
-                rospy.loginfo("Transfered to SEEREP")
+            #     bbs = []
+            #     labels = []
+            #     confidences = []
+            #     # traverse the perdictions for the current image
+            #     for obj in range(len(pred[1])):
+            #         start_cord, end_cord = (int(pred[0][obj, 0]), int(pred[0][obj, 1])), (int(pred[0][obj, 2]), int(pred[0][obj, 3]))
+            #         x, y, w, h = (start_cord[0] + end_cord[0]) / 2, (start_cord[1] + end_cord[1])/2, end_cord[0] - start_cord[0], end_cord[1] - start_cord[1]
+            #         label = self.class_names[int(pred[1][obj])]
+            #         confidences.append(pred[2][obj])
+            #         bbs.append(((x,y), (w,h)))      # SEEREP expects center x,y and width, height
+            #         # bbs.append((start_cord, end_cord))
+            #         labels.append(label)
+            #         # cv2.rectangle(sample['image'], start_cord, end_cord, (255, 0, 0), 2)
+            #     # cv2.imshow('image', sample['image'])
+            #     # cv2.waitKey(0)
+            #     # schan.sendboundingbox(sample, bbs, labels, confidences, self.model_name+'_2')
+            #     schan.sendboundingbox(sample, bbs, labels, confidences, 'ground_truth_2')
+            #     print('[INFO] Sent boxes for image under category name {}'.format(self.model_name+'_2'))
+            #     rospy.loginfo("Transfered to SEEREP")
         # self.calculate_metrics()
 
     def compute_ap(self, recall, precision):
