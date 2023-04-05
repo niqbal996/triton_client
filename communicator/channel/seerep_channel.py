@@ -339,6 +339,8 @@ class SEEREPChannel():
         return data
 
     def run_query_aitf(self, **kwargs):
+        anns = {'weeds':0, 
+                'maize':1}
         projectuuidString = self._builder.CreateString(self._projectid)
         Query.StartProjectuuidVector(self._builder, 1)
         self._builder.PrependUOffsetTRelative(projectuuidString)
@@ -387,15 +389,17 @@ class SEEREPChannel():
             sample['image'] = np.reshape(response.DataAsNumpy(), (response.Height(), response.Width(), 3))
 
             nbbs = response.LabelsBbLength()
-            sample['boxes'] = nbbs
+            sample['boxes'] = []
             for category in range(response.LabelsBbLength()):
                 print("Category name: {}".format(response.LabelsBb(category).Category().decode("utf-8")))
                 for j in range(response.LabelsBb(0).BoundingBox2dLabeledLength()):
-                    print(f"uuidmsg: {response.Header().UuidMsgs().decode('utf-8')}")
-                    print("label: " + response.LabelsBb(0).BoundingBox2dLabeled(j).LabelWithInstance().Label().Label().decode("utf-8") 
-                        + " ; confidence: " 
-                        + str(response.LabelsBb(0).BoundingBox2dLabeled(j).LabelWithInstance().Label().Confidence())
-                        )
+                    # print(f"uuidmsg: {response.Header().UuidMsgs().decode('utf-8')}")
+                    # print("label: " + response.LabelsBb(0).BoundingBox2dLabeled(j).LabelWithInstance().Label().Label().decode("utf-8") 
+                    #     + " ; confidence: " 
+                    #     + str(response.LabelsBb(0).BoundingBox2dLabeled(j).LabelWithInstance().Label().Confidence())
+                    #     )
+                    label = response.LabelsBb(0).BoundingBox2dLabeled(j).LabelWithInstance().Label().Label().decode("utf-8")
+                    confidence = np.float16(response.LabelsBb(0).BoundingBox2dLabeled(j).LabelWithInstance().Label().Confidence())
                     # print(
                     #     "bounding box number (Xcenter,Ycenter,Xextent,Yextent):"
                     #     + str(response.LabelsBb(0).BoundingBox2dLabeled(j).BoundingBox().CenterPoint().X())
@@ -407,8 +411,10 @@ class SEEREPChannel():
                     #     + str(response.LabelsBb(0).BoundingBox2dLabeled(j).BoundingBox().SpatialExtent().Y())
                     #     + "\n"
                     # )
-                    # x, y = response.LabelsBb(0).BoundingBox2dLabeled(j).BoundingBox().CenterPoint().X(), response.LabelsBb(0).BoundingBox2dLabeled(j).BoundingBox().CenterPoint().Y()
-                    # w, h = response.LabelsBb(0).BoundingBox2dLabeled(j).BoundingBox().SpatialExtent().X(), response.LabelsBb(0).BoundingBox2dLabeled(j).BoundingBox().SpatialExtent().Y()
+                    x, y = response.LabelsBb(0).BoundingBox2dLabeled(j).BoundingBox().CenterPoint().X(), response.LabelsBb(0).BoundingBox2dLabeled(j).BoundingBox().CenterPoint().Y()
+                    w, h = response.LabelsBb(0).BoundingBox2dLabeled(j).BoundingBox().SpatialExtent().X(), response.LabelsBb(0).BoundingBox2dLabeled(j).BoundingBox().SpatialExtent().Y()
+                    x_tl, y_tl = x - (w/2), y - (h/2)
+                    sample['boxes'].append([x_tl, y_tl, w, h, anns[label], confidence])
                     # x1, y1 = int(x - (w/2)), int(y - (h/2))
                     # x2, y2 = int(x + (w/2)), int(y + (h/2))
                     # tmp = cv2.cvtColor(sample['image'], cv2.COLOR_RGB2BGR)
