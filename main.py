@@ -47,6 +47,7 @@ from clients import Yolov5client, FCOS_client
 
 clients = {
     'YOLOv5nCROP': Yolov5client,
+    'YOLOv5nCOCO': Yolov5client,
     'FCOS_detectron':FCOS_client,
     # 'second_iou':Pointpillars_client,
     # more clients can be added
