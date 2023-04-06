@@ -36,6 +36,7 @@ class SEEREPChannel():
         self._msguuid = None
         self.socket = socket
         self.projname = project_name
+        self.normalized_coors = False
 
         # register and initialise the stub
         self.channel = self.make_channel(secure=False)
@@ -142,14 +143,15 @@ class SEEREPChannel():
 
         responseBuf = self._grpc_stubmeta.GetProjects(bytes(buf))
         response = ProjectInfos.ProjectInfos.GetRootAs(responseBuf)
-
+        curr_proj = ''
         for i in range(response.ProjectsLength()):
             if log==True:
                 try:
-                    print(response.Projects(i).Name().decode("utf-8") + " " + response.Projects(i).Uuid().decode("utf-8"))
+                    tmp = response.Projects(i).Name().decode("utf-8")
+                    print(tmp + " " + response.Projects(i).Uuid().decode("utf-8"))
                     if response.Projects(i).Name().decode("utf-8") == projname:
                         projectuuid = response.Projects(i).Uuid().decode("utf-8")
-                        print("[FOUND PROJ] ", projectuuid)
+                        curr_proj = tmp
                 except Exception as e:
                     print(e)
             else:
@@ -157,6 +159,7 @@ class SEEREPChannel():
                     projectuuid = response.Projects(i).Uuid().decode("utf-8")
                 except Exception as e:
                     print(e)
+        print("[FOUND PROJECT] {} with UUID: {}".format(curr_proj, projectuuid))
         return projectuuid
 
     def string_to_fbmsg (self, projectuuid):
@@ -339,17 +342,17 @@ class SEEREPChannel():
         return data
 
     def run_query_aitf(self, **kwargs):
-        anns = {'weeds':0, 
-                'maize':1}
+        # anns = {'weeds':0, 
+        #         'maize':1}
+        anns = {'person':0}
         projectuuidString = self._builder.CreateString(self._projectid)
         Query.StartProjectuuidVector(self._builder, 1)
         self._builder.PrependUOffsetTRelative(projectuuidString)
         projectuuidMsg = self._builder.EndVector()
         projectUuids = [projectuuidString]
         # labels = [[self._builder.CreateString("person")]]
-        categories = ['ground_truth', 'FCOS_detectron']
-        labels = [[util_fb.createLabelWithConfidence(self._builder, "maize")],
-                  [util_fb.createLabelWithConfidence(self._builder, "maize")]]
+        categories = ['ground_truth']
+        labels = [[util_fb.createLabelWithConfidence(self._builder, "person")]]
         # labels = [[util_fb.createLabelWithConfidence(self._builder, "maize"), 
         #            util_fb.createLabelWithConfidence(self._builder, "weeds")],
         #           [util_fb.createLabelWithConfidence(self._builder, "maize"), 
@@ -378,51 +381,44 @@ class SEEREPChannel():
         
         data = []
         sample = {}
-
+        category = 1 # ground_truth
+        # print("Category name: {}".format(response.LabelsBb(category).Category().decode("utf-8")))
         for responseBuf in self._grpc_stub.GetImage(bytes(buf)):
-            print('[INFO] Receiving images . . .')
+            # print('[INFO] Receiving images . . .')
             response = Image.Image.GetRootAs(responseBuf)
-
-            # this should not be inside the loop
             self._msguuid = response.Header().UuidMsgs().decode("utf-8")
             sample['uuid'] = self._msguuid
             sample['image'] = np.reshape(response.DataAsNumpy(), (response.Height(), response.Width(), 3))
-
-            nbbs = response.LabelsBbLength()
             sample['boxes'] = []
-            for category in range(response.LabelsBbLength()):
-                print("Category name: {}".format(response.LabelsBb(category).Category().decode("utf-8")))
-                for j in range(response.LabelsBb(0).BoundingBox2dLabeledLength()):
-                    # print(f"uuidmsg: {response.Header().UuidMsgs().decode('utf-8')}")
-                    # print("label: " + response.LabelsBb(0).BoundingBox2dLabeled(j).LabelWithInstance().Label().Label().decode("utf-8") 
-                    #     + " ; confidence: " 
-                    #     + str(response.LabelsBb(0).BoundingBox2dLabeled(j).LabelWithInstance().Label().Confidence())
-                    #     )
-                    label = response.LabelsBb(0).BoundingBox2dLabeled(j).LabelWithInstance().Label().Label().decode("utf-8")
-                    confidence = np.float16(response.LabelsBb(0).BoundingBox2dLabeled(j).LabelWithInstance().Label().Confidence())
-                    # print(
-                    #     "bounding box number (Xcenter,Ycenter,Xextent,Yextent):"
-                    #     + str(response.LabelsBb(0).BoundingBox2dLabeled(j).BoundingBox().CenterPoint().X())
-                    #     + " "
-                    #     + str(response.LabelsBb(0).BoundingBox2dLabeled(j).BoundingBox().CenterPoint().Y())
-                    #     + " "
-                    #     + str(response.LabelsBb(0).BoundingBox2dLabeled(j).BoundingBox().SpatialExtent().X())
-                    #     + " "
-                    #     + str(response.LabelsBb(0).BoundingBox2dLabeled(j).BoundingBox().SpatialExtent().Y())
-                    #     + "\n"
-                    # )
-                    x, y = response.LabelsBb(0).BoundingBox2dLabeled(j).BoundingBox().CenterPoint().X(), response.LabelsBb(0).BoundingBox2dLabeled(j).BoundingBox().CenterPoint().Y()
-                    w, h = response.LabelsBb(0).BoundingBox2dLabeled(j).BoundingBox().SpatialExtent().X(), response.LabelsBb(0).BoundingBox2dLabeled(j).BoundingBox().SpatialExtent().Y()
-                    x_tl, y_tl = x - (w/2), y - (h/2)
+            # for category in range(response.LabelsBbLength()):
+            for j in range(response.LabelsBb(0).BoundingBox2dLabeledLength()):
+                label = response.LabelsBb(0).BoundingBox2dLabeled(j).LabelWithInstance().Label().Label().decode("utf-8")
+                confidence = np.float16(response.LabelsBb(0).BoundingBox2dLabeled(j).LabelWithInstance().Label().Confidence())
+                x, y = response.LabelsBb(0).BoundingBox2dLabeled(j).BoundingBox().CenterPoint().X(), response.LabelsBb(0).BoundingBox2dLabeled(j).BoundingBox().CenterPoint().Y()
+                w, h = response.LabelsBb(0).BoundingBox2dLabeled(j).BoundingBox().SpatialExtent().X(), response.LabelsBb(0).BoundingBox2dLabeled(j).BoundingBox().SpatialExtent().Y()
+                x_tl, y_tl = x - (w/2), y - (h/2)
+                if x<=1 and y<=1:
+                    self.normalized_coors = True 
+                    sample['normalized'] = True
+                else:
+                    sample['normalized'] = False
+                    self.normalized_coors = False 
+                if sample['normalized'] == False:
                     sample['boxes'].append([x_tl, y_tl, w, h, anns[label], confidence])
-                    # x1, y1 = int(x - (w/2)), int(y - (h/2))
-                    # x2, y2 = int(x + (w/2)), int(y + (h/2))
-                    # tmp = cv2.cvtColor(sample['image'], cv2.COLOR_RGB2BGR)
-                    # cv2.rectangle(tmp, (x1, y1), (x2, y2), (255, 0, 0), 2)
-            # cv2.imshow('image number {}'.format(x), tmp)
+                else:
+                    scale_x, scale_y = sample['image'].shape[1], sample['image'].shape[0]
+                    sample['boxes'].append([x_tl * scale_x, y_tl * scale_y, w * scale_x, h * scale_y, anns[label], confidence])
+                    # For DEBUG
+            #         tmp = cv2.cvtColor(sample['image'], cv2.COLOR_RGB2BGR)
+            #         cv2.rectangle(tmp, 
+            #                       (int(sample['boxes'][j][0]), int(sample['boxes'][j][1])), 
+            #                       (int(sample['boxes'][j][0]+sample['boxes'][j][2]), int(sample['boxes'][j][1]+sample['boxes'][j][3])), 
+            #                       (255, 0, 0), 2)
+            # cv2.imshow('image number', tmp)
             # cv2.waitKey(0)
             data.append(sample)
             sample={}
+        print('[INFO] Fetched {} images from the current SEEREP project'.format(len(data)))
         return data
     
     def sendboundingbox(self, sample, bbs, labels, confidences, model_name):
