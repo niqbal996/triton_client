@@ -18,8 +18,9 @@ class COCO_SEEREP:
         :return:
         """
         self.seerep_data= seerep_data
-        self.anns =  {'weeds':0, 
-                       'maize':1}
+        # self.anns =  {'weeds':0, 
+        #                'maize':1}
+        self.anns =  {'person':0}
         self.ground_truth = self.init_gt()
         self.predictions = self.init_pred_result()
 
@@ -33,30 +34,36 @@ class COCO_SEEREP:
         self.cocoDataset['annotations'] = []
         self.cocoDataset['categories'] = []
         # initialize  images array, maybe we dont need this for evaluation. 
-        for item in self.seerep_data:
+        label_id = 0
+        for item, idx in zip(self.seerep_data, range(len(self.seerep_data))):
             tmp = {}
             tmp['license'] = 1 # dummy license
-            tmp['filename'] = 'dontknow'
+            tmp['filename'] = item['uuid']
             tmp['height'] = item['image'].shape[0]
             tmp['width'] = item['image'].shape[1]
-            tmp['id'] = item['uuid']
+            tmp['id'] = idx
+            tmp['uuid'] = item['uuid']
             self.cocoDataset['images'].append(tmp)
 
             for annotation in item['boxes']:
                 # put the annotations into coco format
                 tmp = {}
                 tmp['segmentation'] = []
-                tmp['area'] = annotation[2] * annotation[3]
+                tmp['area'] = (annotation[2]*item['image'].shape[0])  * (annotation[3]*item['image'].shape[1])
                 tmp['iscrowd'] = 0
-                tmp['bbox'] = [annotation[0], annotation[1], annotation[2], annotation[3]]
-                tmp['image_id'] = item['uuid']
-                tmp['category_id'] = annotation[4]
-                tmp['id'] = 1 # this id corresponds to ID of each label, leaving it as 1 for now TODO
+                tmp['bbox'] = [annotation[0]*item['image'].shape[0], 
+                               annotation[1]*item['image'].shape[1], 
+                               annotation[2]*item['image'].shape[0], 
+                               annotation[3]*item['image'].shape[1]]
+                tmp['image_id'] = idx
+                tmp['category_id'] = annotation[4]+1
+                tmp['id'] = label_id 
+                label_id += 1
                 self.cocoDataset['annotations'].append(tmp)
         for cat in self.anns:
             tmp = {}
-            tmp['supercategory'] = 'crops'
-            tmp['id'] = self.anns[cat]
+            tmp['supercategory'] = 'human'
+            tmp['id'] = self.anns[cat]+1
             tmp['name'] = cat
             self.cocoDataset['categories'].append(tmp)
         cocoGt.dataset = self.cocoDataset
@@ -68,20 +75,23 @@ class COCO_SEEREP:
         self.res = COCO()
         self.res.dataset['images'] = self.cocoDataset['images']
         preds = []
+        # check for BBOX type labels
         if len(self.cocoDataset['annotations'][0]['bbox']) == 4:
             self.res.dataset['categories'] = copy.deepcopy(self.cocoDataset['categories'])
+            # iterate through fetched data samples
             for item in self.seerep_data:
-                for annotation in item['boxes']:
+                for annotation in item['predictions']:
                     # put the annotations into coco format
                     tmp = {}
-                    x1, x2, y1, y2 = [annotation[0], annotation[0]+annotation[2], annotation[1], annotation[1]+annotation[3]]
+                    # (c_x, c_y, w,h) to (x_tl,y_tl, w, h)
+                    x1, y1, x2, y2 = annotation[0], annotation[1], annotation[0]+annotation[2], annotation[1]+annotation[3]
                     if not 'segmentation' in item:
                         tmp['segmentation'] = [[x1, y1, x1, y2, x2, y2, x2, y1]]
                     tmp['area'] = annotation[2] * annotation[3]
                     tmp['iscrowd'] = 0
-                    tmp['bbox'] = [annotation[0], annotation[1], annotation[2], annotation[3]]
+                    tmp['bbox'] = annotation[0:4]
                     tmp['image_id'] = item['uuid']
-                    tmp['category_id'] = annotation[4]
+                    tmp['category_id'] = int(annotation[4])
                     tmp['score'] = annotation[5]
                     tmp['id'] = 1 # this id corresponds to ID of each label, leaving it as 1 for now TODO
                     preds.append(tmp)
