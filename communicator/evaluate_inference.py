@@ -44,7 +44,14 @@ class EvaluateInference(BaseInference):
         self.client_postprocess = client.get_postprocess() # get postprocess of client
         self.client_preprocess = client.get_preprocess()
         self.model_name = client.model_name
-        self.class_names = self.client_postprocess.load_class_names()
+        if 'COCO' in self.model_name:
+            self.class_names = self.client_postprocess.load_class_names(dataset='COCO')
+        elif 'CROP' in self.model_name:
+            self.class_names = self.client_postprocess.load_class_names(dataset='CROP')
+        else:
+            # TODO shutdown? 
+            self.class_names=None
+        
         self.count  = 0
         self.id_list_preds = []
         self.id_list_gts = []
@@ -125,42 +132,53 @@ class EvaluateInference(BaseInference):
             statistics = self.calculate_metrics()
 
         elif source == "seerepfb":
-            schan = seerep_channel.SEEREPChannel(project_name='simulatedCropsGroundTruth',
+            schan = seerep_channel.SEEREPChannel(project_name='aitf-triton-data',
                                                 socket='agrigaia-ur.ni.dfki:9090')
                                                 # socket='localhost:9090')
 
             # data = schan.run_query()
             data = schan.run_query_aitf()
-            coco_data = COCO_SEEREP(seerep_data=data)
             rospy.loginfo("Number of images retrieved from SEEREP: " + str(len(data)))
+            annotations = []
+            color = (255, 0, 0)
+            text_color = (255, 255, 255)
+            # traverse through the images
+            print('[INFO] Sending inference request to Triton for each image sample')
+            for sample, idx in zip(data, range(len(data))):
+                # perform an inference on each image, iteratively
+                pred = self.seerep_infer(sample['image'])
+                sample['predictions'] = []
+                bbs = []
+                labels = []
+                confidences = []
+                # traverse the perdictions for the current image
+                for obj in range(len(pred[1])):
+                    start_cord, end_cord = (int(pred[0][obj, 0]), int(pred[0][obj, 1])), (int(pred[0][obj, 2]), int(pred[0][obj, 3]))
+                    x, y, w, h = (start_cord[0] + end_cord[0]) / 2, (start_cord[1] + end_cord[1])/2, end_cord[0] - start_cord[0], end_cord[1] - start_cord[1]
+                    assert x>0 and y>0 and w>0 and h>0
+                    label = self.class_names[int(pred[1][obj])]
+                    confidences.append(pred[2][obj])
+                    bbs.append(((x,y), (w,h)))      # SEEREP expects center x,y and width, height
+                    # bbs.append((start_cord, end_cord))
+                    labels.append(label)
+                    # cv2.rectangle(sample['image'], start_cord, end_cord, color, 2)
+                    # (tw, th), _ = cv2.getTextSize('{} {} %'.format(label, round(pred[2][obj], 2)), cv2.FONT_HERSHEY_SIMPLEX, 0.9, 2)
+                    # cv2.rectangle(sample['image'], (start_cord[0], start_cord[1] - 25), (start_cord[0] + tw, start_cord[1]), color, -1)
+                    # cv2.putText(sample['image'], '{} {} %'.format(label, round(pred[2][obj], 2)), (start_cord[0], start_cord[1] - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.9, text_color, 2)
+                    # sample['predictions'].append([x, y, w, h, pred[1][obj], pred[2][obj]])
+                    data[idx]['predictions'].append([start_cord[0], start_cord[1], w, h, pred[1][obj], pred[2][obj]])
+                # cv2.imshow('image', cv2.cvtColor(sample['image'], cv2.COLOR_RGB2BGR))
+                # cv2.waitKey(0)
+                # TODO run evaluation without inference call
+                # schan.sendboundingbox(sample, bbs, labels, confidences, self.model_name)
+                # print('[INFO] Sent boxes for image under category name {}'.format(self.model_name))
+                # rospy.loginfo("Transfered to SEEREP")
+            # Convert groundtruth and predictions to PyCOCO format for evaluation
+            coco_data = COCO_SEEREP(seerep_data=data)
             cocoEval = COCOeval(coco_data.ground_truth, coco_data.predictions, 'bbox')
             cocoEval.evaluate()
             cocoEval.accumulate()
             cocoEval.summarize()
-            # traverse through the images
-            # for sample in data:
-            #     # perform an inference on each image, iteratively
-            #     pred = self.seerep_infer(sample['image'])
-
-            #     bbs = []
-            #     labels = []
-            #     confidences = []
-            #     # traverse the perdictions for the current image
-            #     for obj in range(len(pred[1])):
-            #         start_cord, end_cord = (int(pred[0][obj, 0]), int(pred[0][obj, 1])), (int(pred[0][obj, 2]), int(pred[0][obj, 3]))
-            #         x, y, w, h = (start_cord[0] + end_cord[0]) / 2, (start_cord[1] + end_cord[1])/2, end_cord[0] - start_cord[0], end_cord[1] - start_cord[1]
-            #         label = self.class_names[int(pred[1][obj])]
-            #         confidences.append(pred[2][obj])
-            #         bbs.append(((x,y), (w,h)))      # SEEREP expects center x,y and width, height
-            #         # bbs.append((start_cord, end_cord))
-            #         labels.append(label)
-            #         # cv2.rectangle(sample['image'], start_cord, end_cord, (255, 0, 0), 2)
-            #     # cv2.imshow('image', sample['image'])
-            #     # cv2.waitKey(0)
-            #     # schan.sendboundingbox(sample, bbs, labels, confidences, self.model_name+'_2')
-            #     schan.sendboundingbox(sample, bbs, labels, confidences, 'ground_truth_2')
-            #     print('[INFO] Sent boxes for image under category name {}'.format(self.model_name+'_2'))
-            #     rospy.loginfo("Transfered to SEEREP")
         # self.calculate_metrics()
 
     def compute_ap(self, recall, precision):
@@ -347,16 +365,18 @@ class EvaluateInference(BaseInference):
             self.channel.request.raw_input_contents.extend([self.image.tobytes()])
             self.channel.response = self.channel.do_inference()  # Inference
             self.prediction = self.client_postprocess.extract_boxes(self.channel.response)
-            # DEBUG
-            # tmp = np.transpose(self.image[0, :, :], (1, 2, 0))
-            # tmp = cv2.cvtColor(tmp, cv2.COLOR_RGB2BGR).astype(np.uint8)
-            # for box in self.prediction[0]:
-            #     cv2.rectangle(tmp, (int(box[0]), int(box[1])), (int(box[2]), int(box[3])), (255, 0, 0), 2)
-            # cv2.imshow('img', tmp)
-            # cv2.waitKey(0)
-            self.prediction[0] = self._scale_box_array(self.prediction[0], normalized=False)
-
-        return self.prediction
+            if len(self.prediction[1]) > 0:
+                # DEBUG
+                # tmp = np.transpose(self.image[0, :, :], (1, 2, 0))
+                # tmp = cv2.cvtColor(tmp, cv2.COLOR_RGB2BGR).astype(np.uint8)
+                # for box in self.prediction[0]:
+                #     cv2.rectangle(tmp, (int(box[0]), int(box[1])), (int(box[2]), int(box[3])), (255, 0, 0), 2)
+                # cv2.imshow('img', tmp)
+                # cv2.waitKey(0)
+                self.prediction[0] = self._scale_box_array(self.prediction[0], normalized=False)
+                return self.prediction
+            else:
+                return self.prediction
 
     def image_callback(self, msg):
         self.count += 1
