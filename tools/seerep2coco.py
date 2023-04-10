@@ -35,6 +35,7 @@ class COCO_SEEREP:
         self.cocoDataset['categories'] = []
         # initialize  images array, maybe we dont need this for evaluation. 
         label_id = 0
+        # TODO how to make the image_ids in integer range but unique????
         for item, idx in zip(self.seerep_data, range(len(self.seerep_data))):
             tmp = {}
             tmp['license'] = 1 # dummy license
@@ -49,12 +50,10 @@ class COCO_SEEREP:
                 # put the annotations into coco format
                 tmp = {}
                 tmp['segmentation'] = []
-                tmp['area'] = (annotation[2]*item['image'].shape[0])  * (annotation[3]*item['image'].shape[1])
+                tmp['area'] = (annotation[2])  * (annotation[3])
                 tmp['iscrowd'] = 0
-                tmp['bbox'] = [annotation[0]*item['image'].shape[0], 
-                               annotation[1]*item['image'].shape[1], 
-                               annotation[2]*item['image'].shape[0], 
-                               annotation[3]*item['image'].shape[1]]
+                # xtl, ytl, w, h
+                tmp['bbox'] = annotation[0:4]
                 tmp['image_id'] = idx
                 tmp['category_id'] = annotation[4]+1
                 tmp['id'] = label_id 
@@ -79,7 +78,7 @@ class COCO_SEEREP:
         if len(self.cocoDataset['annotations'][0]['bbox']) == 4:
             self.res.dataset['categories'] = copy.deepcopy(self.cocoDataset['categories'])
             # iterate through fetched data samples
-            for item in self.seerep_data:
+            for item, idx in zip(self.seerep_data, range(len(self.seerep_data))):
                 for annotation in item['predictions']:
                     # put the annotations into coco format
                     tmp = {}
@@ -90,8 +89,8 @@ class COCO_SEEREP:
                     tmp['area'] = annotation[2] * annotation[3]
                     tmp['iscrowd'] = 0
                     tmp['bbox'] = annotation[0:4]
-                    tmp['image_id'] = item['uuid']
-                    tmp['category_id'] = int(annotation[4])
+                    tmp['image_id'] = idx
+                    tmp['category_id'] = int(annotation[4])+1   # category ids start from 1
                     tmp['score'] = annotation[5]
                     tmp['id'] = 1 # this id corresponds to ID of each label, leaving it as 1 for now TODO
                     preds.append(tmp)
