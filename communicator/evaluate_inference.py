@@ -44,7 +44,7 @@ class EvaluateInference(BaseInference):
         self.client_postprocess = client.get_postprocess() # get postprocess of client
         self.client_preprocess = client.get_preprocess()
         self.model_name = client.model_name
-        if 'COCO' in self.model_name:
+        if 'COCO' or 'coco' in self.model_name:
             self.class_names = self.client_postprocess.load_class_names(dataset='COCO')
         elif 'CROP' in self.model_name:
             self.class_names = self.client_postprocess.load_class_names(dataset='CROP')
@@ -153,21 +153,21 @@ class EvaluateInference(BaseInference):
                 confidences = []
                 # traverse the perdictions for the current image
                 for obj in range(len(pred[1])):
-                    start_cord, end_cord = (int(pred[0][obj, 0]), int(pred[0][obj, 1])), (int(pred[0][obj, 2]), int(pred[0][obj, 3]))
+                    start_cord, end_cord = (pred[0][obj, 0], pred[0][obj, 1]), (pred[0][obj, 2], pred[0][obj, 3])
                     x, y, w, h = (start_cord[0] + end_cord[0]) / 2, (start_cord[1] + end_cord[1])/2, end_cord[0] - start_cord[0], end_cord[1] - start_cord[1]
                     assert x>0 and y>0 and w>0 and h>0
                     label = self.class_names[int(pred[1][obj])]
                     confidences.append(pred[2][obj])
-                    bbs.append(((x,y), (w,h)))      # SEEREP expects center x,y and width, height
+                    bbs.append((start_cord, (w,h)))      # SEEREP expects center x,y and width, height
                     # bbs.append((start_cord, end_cord))
                     labels.append(label)
-                    # cv2.rectangle(sample['image'], start_cord, end_cord, color, 2)
-                    # (tw, th), _ = cv2.getTextSize('{} {} %'.format(label, round(pred[2][obj], 2)), cv2.FONT_HERSHEY_SIMPLEX, 0.9, 2)
-                    # cv2.rectangle(sample['image'], (start_cord[0], start_cord[1] - 25), (start_cord[0] + tw, start_cord[1]), color, -1)
-                    # cv2.putText(sample['image'], '{} {} %'.format(label, round(pred[2][obj], 2)), (start_cord[0], start_cord[1] - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.9, text_color, 2)
-                    # sample['predictions'].append([x, y, w, h, pred[1][obj], pred[2][obj]])
                     data[idx]['predictions'].append([start_cord[0], start_cord[1], w, h, pred[1][obj], pred[2][obj]])
-                # cv2.imshow('image', cv2.cvtColor(sample['image'], cv2.COLOR_RGB2BGR))
+                    (tw, th), _ = cv2.getTextSize('{} {} %'.format(label, round(pred[2][obj], 2))*100, cv2.FONT_HERSHEY_SIMPLEX, 0.9, 2)
+                #     cv2.rectangle(sample['image'], (int(pred[0][obj, 0]), int(pred[0][obj, 1])), (int(pred[0][obj, 2]), int(pred[0][obj, 3])), color, 2)
+                #     cv2.rectangle(sample['image'], (int(start_cord[0]), int(start_cord[1] - 25)), (int(start_cord[0] + tw), int(start_cord[1])), color, -1)
+                #     cv2.putText(sample['image'], '{} {} % Area: {}'.format(label, round(pred[2][obj], 2)*100, w*h), (int(pred[0][obj, 0]), int(pred[0][obj, 1]) - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.9, text_color, 2)
+                #     sample['predictions'].append([x, y, w, h, pred[1][obj], pred[2][obj]])
+                # cv2.imshow('image number {}'.format(idx+1), cv2.cvtColor(sample['image'], cv2.COLOR_RGB2BGR))
                 # cv2.waitKey(0)
                 # TODO run evaluation without inference call
                 # schan.sendboundingbox(sample, bbs, labels, confidences, self.model_name)

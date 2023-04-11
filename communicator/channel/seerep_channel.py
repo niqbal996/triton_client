@@ -352,7 +352,11 @@ class SEEREPChannel():
         projectUuids = [projectuuidString]
         # labels = [[self._builder.CreateString("person")]]
         categories = ['ground_truth']
-        labels = [[util_fb.createLabelWithConfidence(self._builder, "person")]]
+        labels = [[util_fb.createLabelWithConfidence(self._builder, "person"), 
+                #    util_fb.createLabelWithConfidence(self._builder, "weather_general_sun"),
+                #    util_fb.createLabelWithConfidence(self._builder, "weatherGeneral_cloudy"),
+                #    util_fb.createLabelWithConfidence(self._builder, "weatherGeneral_rain"),
+                 ]]
         # labels = [[util_fb.createLabelWithConfidence(self._builder, "maize"), 
         #            util_fb.createLabelWithConfidence(self._builder, "weeds")],
         #           [util_fb.createLabelWithConfidence(self._builder, "maize"), 
@@ -370,7 +374,7 @@ class SEEREPChannel():
             # boundingBox=boundingboxStamped,
             # timeInterval=timeInterval,
             labels=labelCategory,
-            # mustHaveAllLabels=True,
+            mustHaveAllLabels=True,
             projectUuids=projectUuids,
             # instanceUuids=instanceUuids,
             # dataUuids=dataUuids,
@@ -414,7 +418,7 @@ class SEEREPChannel():
             #                       (int(sample['boxes'][j][0]), int(sample['boxes'][j][1])), 
             #                       (int(sample['boxes'][j][0]+sample['boxes'][j][2]), int(sample['boxes'][j][1]+sample['boxes'][j][3])), 
             #                       (255, 0, 0), 2)
-            # cv2.imshow('image number', tmp)
+            # cv2.imshow('image number {}'.format(j+1), tmp)
             # cv2.waitKey(0)
             data.append(sample)
             sample={}

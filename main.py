@@ -43,12 +43,13 @@ import yaml
 
 from communicator import RosInference, EvaluateInference
 from communicator.channel import grpc_channel, seerep_channel
-from clients import Yolov5client, FCOS_client
+from clients import Yolov5client, FCOS_client, Detrex_client
 
 clients = {
     'YOLOv5nCROP': Yolov5client,
     'YOLOv5nCOCO': Yolov5client,
     'FCOS_detectron':FCOS_client,
+    'dino_coco_512':Detrex_client,
     # 'second_iou':Pointpillars_client,
     # more clients can be added
 }
