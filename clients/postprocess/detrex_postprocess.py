@@ -8,7 +8,7 @@ import sys
 # import torch
 # import torchvision
 
-class FCOSpostprocess(Postprocess):
+class Detrexpostprocess(Postprocess):
     def __init__(self):
         pass
 
@@ -39,8 +39,10 @@ class FCOSpostprocess(Postprocess):
             """
         boxes = self.deserialize_bytes_float(prediction.raw_output_contents[0])
         boxes = np.reshape(boxes, prediction.outputs[0].shape)
-        class_ids = self.deserialize_bytes_int(prediction.raw_output_contents[1])
+        input_shape = self.deserialize_bytes_int(prediction.raw_output_contents[1])
         scores = self.deserialize_bytes_float(prediction.raw_output_contents[2])
         scores = np.reshape(scores, prediction.outputs[2].shape)
-
-        return [boxes, class_ids, scores]
+        class_ids = self.deserialize_bytes_int(prediction.raw_output_contents[3])
+        class_ids = np.reshape(class_ids, prediction.outputs[3].shape)
+        conf_inds = np.where(scores > 0.50)
+        return [boxes[conf_inds], class_ids[conf_inds], scores[conf_inds]]
