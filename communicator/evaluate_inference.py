@@ -133,14 +133,15 @@ class EvaluateInference(BaseInference):
 
         elif source == "seerepfb":
             schan = seerep_channel.SEEREPChannel(project_name='aitf-triton-data',
-                                                socket='agrigaia-ur.ni.dfki:9090')
-                                                # socket='localhost:9090')
+                                                # socket='agrigaia-ur.ni.dfki:9090')
+                                                socket='localhost:9090')
 
             # data = schan.run_query()
             data = schan.run_query_aitf()
             rospy.loginfo("Number of images retrieved from SEEREP: " + str(len(data)))
             annotations = []
-            color = (255, 0, 0)
+            color1 = (255, 0, 0)
+            color2 = (0, 255, 0)
             text_color = (255, 255, 255)
             # traverse through the images
             print('[INFO] Sending inference request to Triton for each image sample')
@@ -158,20 +159,27 @@ class EvaluateInference(BaseInference):
                     assert x>0 and y>0 and w>0 and h>0
                     label = self.class_names[int(pred[1][obj])]
                     confidences.append(pred[2][obj])
-                    bbs.append((start_cord, (w,h)))      # SEEREP expects center x,y and width, height
+                    bbs.append(((x,y), (w,h)))     # SEEREP expects center x,y and width, height
                     # bbs.append((start_cord, end_cord))
                     labels.append(label)
                     data[idx]['predictions'].append([start_cord[0], start_cord[1], w, h, pred[1][obj], pred[2][obj]])
-                    (tw, th), _ = cv2.getTextSize('{} {} %'.format(label, round(pred[2][obj], 2))*100, cv2.FONT_HERSHEY_SIMPLEX, 0.9, 2)
-                #     cv2.rectangle(sample['image'], (int(pred[0][obj, 0]), int(pred[0][obj, 1])), (int(pred[0][obj, 2]), int(pred[0][obj, 3])), color, 2)
-                #     cv2.rectangle(sample['image'], (int(start_cord[0]), int(start_cord[1] - 25)), (int(start_cord[0] + tw), int(start_cord[1])), color, -1)
-                #     cv2.putText(sample['image'], '{} {} % Area: {}'.format(label, round(pred[2][obj], 2)*100, w*h), (int(pred[0][obj, 0]), int(pred[0][obj, 1]) - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.9, text_color, 2)
+                #     (tw, th), _ = cv2.getTextSize('{} {} %'.format(label, round(pred[2][obj]*100, 2)), cv2.FONT_HERSHEY_SIMPLEX, 0.9, 2)
+                #     cv2.rectangle(sample['image'], (int(pred[0][obj, 0]), int(pred[0][obj, 1])), (int(pred[0][obj, 2]), int(pred[0][obj, 3])), color1, 2)
+                #     cv2.rectangle(sample['image'], (int(start_cord[0]), int(start_cord[1] - 25)), (int(start_cord[0] + tw), int(start_cord[1])), color1, -1)
+                #     cv2.putText(sample['image'], '{} {} %'.format(label, round(pred[2][obj], 2)*100), (int(pred[0][obj, 0]), int(pred[0][obj, 1]) - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.9, text_color, 2)
                 #     sample['predictions'].append([x, y, w, h, pred[1][obj], pred[2][obj]])
+                # for obj in range(len(sample['boxes'])):
+                #     cv2.rectangle(sample['image'], 
+                #                   (int(sample['boxes'][obj][0]), int(sample['boxes'][obj][1])), 
+                #                   (int(sample['boxes'][obj][0]+sample['boxes'][obj][2]), int(sample['boxes'][obj][1]+sample['boxes'][obj][3])), 
+                #                   color2, 2)
+                # cv2.putText(sample['image'], '{} {} %'.format(label, round(pred[2][obj], 2)*100), (int(pred[0][obj, 0]), int(pred[0][obj, 1]) - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.9, text_color, 2)
                 # cv2.imshow('image number {}'.format(idx+1), cv2.cvtColor(sample['image'], cv2.COLOR_RGB2BGR))
                 # cv2.waitKey(0)
+                # cv2.imwrite('./rainy/image_{}.png'.format(idx), cv2.cvtColor(sample['image'], cv2.COLOR_RGB2BGR))
                 # TODO run evaluation without inference call
                 # schan.sendboundingbox(sample, bbs, labels, confidences, self.model_name)
-                # print('[INFO] Sent boxes for image under category name {}'.format(self.model_name))
+                print('[INFO] Sent boxes for image under category name {}'.format(self.model_name))
                 # rospy.loginfo("Transfered to SEEREP")
             # Convert groundtruth and predictions to PyCOCO format for evaluation
             coco_data = COCO_SEEREP(seerep_data=data)
