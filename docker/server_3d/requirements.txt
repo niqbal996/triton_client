@@ -1,4 +1,11 @@
 cython 
 spconv-cu113 
-torch==1.8.1 
-torchvision==0.9.1
+kornia==0.6.8
+# torch==1.8.1 
+# torchvision==0.9.1
+easydict
+pyquaternion
+pyyaml
+opencv-python
+opencv-contrib-python 
+av2

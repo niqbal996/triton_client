@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=nvcr.io/nvidia/tritonserver:22.04-py3
+ARG BASE_IMAGE=nvcr.io/nvidia/tritonserver:22.12-py3
 FROM ${BASE_IMAGE} as tritonserver
 
 USER root
@@ -6,15 +6,17 @@ USER root
 RUN mkdir -p /opt/dependencies 
 COPY ./docker/server_3d/ /opt/dependencies
 WORKDIR /opt/dependencies
-RUN /opt/dependencies/install_spconv.sh
+RUN --mount=type=cache,target=/root/.cache /opt/dependencies/install_spconv.sh
 
-# install Det3d 1.0 
-# RUN python3 -m pip install det3d-1.0rc0+01258d8-cp38-cp38-linux_x86_64.whl
-# install OpenPCDet 0.6 
-RUN git clone https://github.com/open-mmlab/OpenPCDet.git && \
-    cd OpenPCDet && \
-    python3 setup.py develop && \
-    echo 'export PYTHONPATH=$PYTHONPATH:/opt/dependencies/OpenPCDet' >> ~/.bashrc && \
-    python3 -m pip install numpy==1.23.5
+# Installing torch 1.13.1 compiled with CUDA 11.7
+RUN --mount=type=cache,target=/root/.cache /opt/dependencies/install_torch_2.sh
+
+# install OpenPCDet 0.6.0  
+# RUN git clone https://github.com/open-mmlab/OpenPCDet.git && \
+#     cd OpenPCDet && \
+#     python3 setup.py develop && \ # python3 -m pip install -e .
+#     echo 'export PYTHONPATH=$PYTHONPATH:/opt/dependencies/OpenPCDet' >> ~/.bashrc && \
+#     python3 -m pip install numpy==1.23.5 && \ 
+#     python3 -m pip install kornia==0.6.8
 
 WORKDIR /opt/tritonserver/
